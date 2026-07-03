@@ -8,7 +8,7 @@
 --   * Timestamps are TIMESTAMPTZ — always store UTC-aware, never naive TIMESTAMP.
 --   * Soft delete (deleted_at) is used on business entities whose deletion
 --     must be reversible and whose historical FK references must stay valid:
---     organizations, users, projects, environments, feature_flags, segments.
+--     organisations, users, projects, environments, feature_flags, segments.
 --   * Soft-deleted rows are excluded from uniqueness via PARTIAL UNIQUE INDEXes
 --     (WHERE deleted_at IS NULL), so a freed-up slug/key/email can be reused.
 --   * flag_versions and audit_logs are append-only: no deleted_at, no UPDATE,
@@ -21,9 +21,9 @@
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 -- ============================================================================
--- ORGANIZATIONS — tenant root
+-- Organisations — tenant root
 -- ============================================================================
-CREATE TABLE organizations (
+CREATE TABLE organisations (
     id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name        VARCHAR(255) NOT NULL,
     slug        VARCHAR(100) NOT NULL,
@@ -31,16 +31,16 @@ CREATE TABLE organizations (
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
     deleted_at  TIMESTAMPTZ NULL,
 
-    CONSTRAINT ck_organizations_slug_format CHECK (slug ~ '^[a-z0-9-]+$'),
-    CONSTRAINT ck_organizations_name_not_blank CHECK (btrim(name) <> '')
+    CONSTRAINT ck_organisations_slug_format CHECK (slug ~ '^[a-z0-9-]+$'),
+    CONSTRAINT ck_organisations_name_not_blank CHECK (btrim(name) <> '')
 );
 
 -- Partial unique index: slug must be unique only among non-deleted orgs,
 -- so a deleted org's slug can be reused by a future organization.
-CREATE UNIQUE INDEX uq_organizations_slug ON organizations(slug) WHERE deleted_at IS NULL;
-CREATE INDEX idx_organizations_deleted_at ON organizations(deleted_at) WHERE deleted_at IS NOT NULL;
+CREATE UNIQUE INDEX uq_organisations_slug ON organisations(slug) WHERE deleted_at IS NULL;
+CREATE INDEX idx_organisations_deleted_at ON organisations(deleted_at) WHERE deleted_at IS NOT NULL;
 
-COMMENT ON TABLE organizations IS 'Tenant root entity. Every tenant-owned row traces back here. Soft-deleted via deleted_at.';
+COMMENT ON TABLE organisations IS 'Tenant root entity. Every tenant-owned row traces back here. Soft-deleted via deleted_at.';
 
 -- ============================================================================
 -- USERS — global identity, not tenant-scoped
@@ -61,16 +61,16 @@ CREATE TABLE users (
 CREATE UNIQUE INDEX uq_users_email ON users(email) WHERE deleted_at IS NULL;
 CREATE INDEX idx_users_deleted_at ON users(deleted_at) WHERE deleted_at IS NOT NULL;
 
-COMMENT ON TABLE users IS 'Global login identity. A user may belong to multiple organizations via members. Soft-deleted via deleted_at.';
+COMMENT ON TABLE users IS 'Global login identity. A user may belong to multiple organisations via members. Soft-deleted via deleted_at.';
 
 -- ============================================================================
--- MEMBERS — resolves users <-> organizations many-to-many, carries role
+-- MEMBERS — resolves users <-> organisations many-to-many, carries role
 -- Not soft-deleted: membership removal is a discrete, final event. Re-invites
 -- create a fresh row rather than resurrecting an old one.
 -- ============================================================================
 CREATE TABLE members (
     id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    organization_id  UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    organization_id  UUID NOT NULL REFERENCES organisations(id) ON DELETE CASCADE,
     user_id          UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     role             VARCHAR(20) NOT NULL,
     invited_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -90,7 +90,7 @@ COMMENT ON TABLE members IS 'Associative entity: a user''s role within a specifi
 -- ============================================================================
 CREATE TABLE projects (
     id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    organization_id  UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    organization_id  UUID NOT NULL REFERENCES organisations(id) ON DELETE CASCADE,
     name             VARCHAR(255) NOT NULL,
     key              VARCHAR(100) NOT NULL,
     created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -207,7 +207,7 @@ COMMENT ON TABLE feature_rules IS 'Self-referencing tree modeling the Composite 
 -- ============================================================================
 CREATE TABLE segments (
     id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    organization_id  UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    organization_id  UUID NOT NULL REFERENCES organisations(id) ON DELETE CASCADE,
     name             VARCHAR(255) NOT NULL,
     description      TEXT,
     created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -295,7 +295,7 @@ COMMENT ON TABLE flag_versions IS 'Append-only, no deleted_at — enforced at th
 -- ============================================================================
 CREATE TABLE audit_logs (
     id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    organization_id  UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    organization_id  UUID NOT NULL REFERENCES organisations(id) ON DELETE CASCADE,
     actor_id         UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
     action           VARCHAR(100) NOT NULL,
     entity_type      VARCHAR(50) NOT NULL,
