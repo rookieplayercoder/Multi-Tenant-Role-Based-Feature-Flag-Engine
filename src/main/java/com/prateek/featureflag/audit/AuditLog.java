@@ -49,7 +49,7 @@ public class AuditLog {
     @NotNull
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "organization_id", nullable = false, updatable = false)
-    private Organization organisation;
+    private Organization organization;
 
     @NotNull
     @ManyToOne(fetch = FetchType.LAZY)
@@ -81,13 +81,13 @@ public class AuditLog {
     protected AuditLog() {
     }
 
-    public AuditLog(Organization organisation, User actor, String action, String entityType, UUID entityId) {
-        this(organisation, actor, action, entityType, entityId, null);
+    public AuditLog(Organization organization, User actor, String action, String entityType, UUID entityId) {
+        this(organization, actor, action, entityType, entityId, null);
     }
 
-    public AuditLog(Organization organisation, User actor, String action, String entityType, UUID entityId,
+    public AuditLog(Organization organization, User actor, String action, String entityType, UUID entityId,
                      String metadata) {
-        this.organisation = organisation;
+        this.organization = organization;
         this.actor = actor;
         this.action = action;
         this.entityType = entityType;
@@ -99,8 +99,8 @@ public class AuditLog {
         return id;
     }
 
-    public Organization getOrganisation() {
-        return organisation;
+    public Organization getOrganization() {
+        return organization;
     }
 
     public User getActor() {
