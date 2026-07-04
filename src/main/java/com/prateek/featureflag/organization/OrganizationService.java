@@ -1,5 +1,6 @@
 package com.prateek.featureflag.organization;
 
+import com.prateek.featureflag.user.User;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,9 +24,11 @@ import java.util.UUID;
 public class OrganizationService {
 
     private final OrganizationRepository organizationRepository;
+    private final MemberRepository memberRepository;
 
-    public OrganizationService(OrganizationRepository organizationRepository) {
+    public OrganizationService(OrganizationRepository organizationRepository, MemberRepository memberRepository) {
         this.organizationRepository = organizationRepository;
+        this.memberRepository = memberRepository;
     }
 
     @Transactional
@@ -34,6 +37,19 @@ public class OrganizationService {
             throw new IllegalStateException("Slug already in use: " + slug);
         }
         return organizationRepository.save(new Organization(name, slug));
+    }
+
+    /**
+     * Creates an organization and its founding {@code OWNER} membership in
+     * one transaction. An organization with no owner is a broken state, so
+     * this must not be two separately-committed operations — if the Member
+     * insert fails, the Organization insert rolls back with it.
+     */
+    @Transactional
+    public Organization createWithOwner(String name, String slug, User owner) {
+        Organization organization = create(name, slug);
+        memberRepository.save(new Member(organization, owner, MemberRole.OWNER));
+        return organization;
     }
 
     public Organization getActiveById(UUID id) {
