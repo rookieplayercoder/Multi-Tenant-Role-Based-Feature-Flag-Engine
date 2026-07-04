@@ -1,7 +1,6 @@
-package com.prateek.featureflag.organisation;
+package com.prateek.featureflag.organization;
 
 import com.prateek.featureflag.user.User;
-
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -21,8 +20,8 @@ import java.time.Instant;
 import java.util.UUID;
 
 /**
- * Associative entity resolving the many-to-many between {@link Organisation}
- * and {@link com.prateek.featureflag.user.User}, carrying the {@link MemberRole} for that specific pairing.
+ * Associative entity resolving the many-to-many between {@link Organization}
+ * and {@link User}, carrying the {@link MemberRole} for that specific pairing.
  * <p>
  * Maps exactly to the {@code members} table in V1__initial_schema.sql — no
  * soft delete column exists here by design: per the Module 1 schema,
@@ -54,7 +53,7 @@ public class Member {
     @NotNull
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "organization_id", nullable = false, updatable = false)
-    private Organisation organisation;
+    private Organization organization;
 
     @NotNull
     @ManyToOne(fetch = FetchType.LAZY)
@@ -77,8 +76,8 @@ public class Member {
     protected Member() {
     }
 
-    public Member(Organisation organisation, User user, MemberRole role) {
-        this.organisation = organisation;
+    public Member(Organization organization, User user, MemberRole role) {
+        this.organization = organization;
         this.user = user;
         this.role = role;
     }
@@ -87,8 +86,8 @@ public class Member {
         return id;
     }
 
-    public Organisation getOrganization() {
-        return organisation;
+    public Organization getOrganization() {
+        return organization;
     }
 
     public User getUser() {

@@ -1,4 +1,5 @@
-package com.prateek.featureflag.organisation;
+package com.prateek.featureflag.organization;
+
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -22,8 +23,15 @@ import java.util.UUID;
 /**
  * Tenant root entity. Every tenant-owned row in the system traces back to an Organization.
  * <p>
- * Maps exactly to the {@code organisations} table in V1__initial_schema.sql —
+ * Maps exactly to the {@code organizations} table in V1__initial_schema.sql —
  * no additional columns beyond what that migration defines.
+ * <p>
+ * Class name intentionally kept as {@code Organization} (American spelling)
+ * since it mirrors the locked schema/table name. Package name and newly
+ * introduced method/field names elsewhere (e.g. Project.getOrganization())
+ * use the British "organization" spelling per project convention going
+ * forward — this deliberate mismatch is documented rather than silently
+ * resolved.
  * <p>
  * {@code deleted_at} is a plain nullable column here (no Hibernate-level
  * automatic filtering). Until a service layer exists, callers are
@@ -32,8 +40,8 @@ import java.util.UUID;
  * transparent interception of delete/query operations.
  */
 @Entity
-@Table(name = "organisations")
-public class Organisation {
+@Table(name = "organizations")
+public class Organization {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -69,14 +77,14 @@ public class Organisation {
      * deletion always goes through an explicit, auditable service call
      * rather than an implicit cascading/orphan delete.
      */
-    @OneToMany(mappedBy = "organisation", fetch = FetchType.LAZY, cascade = {CascadeType.PERSIST, CascadeType.MERGE})
+    @OneToMany(mappedBy = "organization", fetch = FetchType.LAZY, cascade = {CascadeType.PERSIST, CascadeType.MERGE})
     private Set<Member> members = new HashSet<>();
 
     /** Required by JPA. Not for application use. */
-    protected Organisation() {
+    protected Organization() {
     }
 
-    public Organisation(String name, String slug) {
+    public Organization(String name, String slug) {
         this.name = name;
         this.slug = slug;
     }
@@ -135,7 +143,7 @@ public class Organisation {
         if (this == o) {
             return true;
         }
-        if (!(o instanceof Organisation other)) {
+        if (!(o instanceof Organization other)) {
             return false;
         }
         return id != null && id.equals(other.id);
@@ -143,8 +151,6 @@ public class Organisation {
 
     @Override
     public int hashCode() {
-        // Constant hashCode: entities must keep a stable hash across their
-        // lifecycle (transient -> persisted), even though id is null pre-persist.
         return getClass().hashCode();
     }
 

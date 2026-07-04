@@ -1,6 +1,6 @@
 package com.prateek.featureflag.user;
 
-import com.prateek.featureflag.organisation.Member;
+import com.prateek.featureflag.organization.Member;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -23,14 +23,14 @@ import java.util.UUID;
 
 /**
  * Global login identity. A User is NOT tenant-scoped — the same person can
- * hold different {@link com.prateek.featureflag.organisation.MemberRole roles} across multiple
- * organisations via {@link Member}. See Module 1 schema notes for why role
- * lives on Member rather than here.
+ * hold different {@link com.prateek.featureflag.organization.MemberRole roles}
+ * across multiple organizations via {@link Member}. See Module 1 schema
+ * notes for why role lives on Member rather than here.
  * <p>
  * Maps exactly to the {@code users} table in V1__initial_schema.sql.
  * {@code deleted_at} is a plain nullable column — no automatic Hibernate
  * filtering is applied; callers must check {@link #isDeleted()} explicitly.
- **/
+ */
 @Entity
 @Table(name = "users")
 public class User {
