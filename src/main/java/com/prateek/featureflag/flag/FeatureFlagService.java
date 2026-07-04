@@ -42,6 +42,20 @@ public class FeatureFlagService {
                 .orElseThrow(() -> new EntityNotFoundException("Feature flag not found: " + id));
     }
 
+    /**
+     * Resolves a flag by its (environment, key) pair — the lookup the
+     * evaluation endpoint needs. This exposes
+     * {@code findByEnvironmentIdAndKeyAndDeletedAtIsNull}, which already
+     * existed on {@link FeatureFlagRepository} (mirroring
+     * {@code uq_feature_flags_env_key}) but wasn't previously surfaced
+     * through the service facade; no new query logic is introduced.
+     */
+    public FeatureFlag getActiveByEnvironmentAndKey(UUID environmentId, String key) {
+        return featureFlagRepository.findByEnvironmentIdAndKeyAndDeletedAtIsNull(environmentId, key)
+                .orElseThrow(() -> new EntityNotFoundException(
+                        "Feature flag not found: environment=" + environmentId + ", key=" + key));
+    }
+
     public List<FeatureFlag> listActiveByEnvironment(UUID environmentId) {
         return featureFlagRepository.findByEnvironmentIdAndDeletedAtIsNull(environmentId);
     }
