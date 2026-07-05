@@ -5,26 +5,38 @@ import com.prateek.featureflag.user.User;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.databind.ObjectMapper;
 
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
- * Service layer for {@link FeatureFlag}. Deliberately does not touch
- * {@link FlagVersion} snapshotting or {@code version} incrementing —
- * that coordination belongs to a future workflow/orchestration layer, not
- * this entity's own service, to keep each service focused on its own
- * aggregate root.
+ * Service layer for {@link FeatureFlag}. After every state-changing
+ * operation (create, updateDetails, toggle) it asks {@link FlagVersionService}
+ * to append an immutable snapshot of the resulting flag state, keeping
+ * {@code flag_versions} in lockstep with {@code FeatureFlag.version}. The
+ * snapshotting itself — validation, persistence, uniqueness of
+ * (flag, version) — remains entirely {@link FlagVersionService}'s
+ * responsibility; this class only decides *when* to ask for it and *what*
+ * the snapshot payload/version/summary should be.
  */
 @Service
 @Transactional(readOnly = true)
 public class FeatureFlagService {
 
     private final FeatureFlagRepository featureFlagRepository;
+    private final FlagVersionService flagVersionService;
+    private final ObjectMapper objectMapper;
 
-    public FeatureFlagService(FeatureFlagRepository featureFlagRepository) {
+    public FeatureFlagService(FeatureFlagRepository featureFlagRepository,
+                              FlagVersionService flagVersionService,
+                              ObjectMapper objectMapper) {
         this.featureFlagRepository = featureFlagRepository;
+        this.flagVersionService = flagVersionService;
+        this.objectMapper = objectMapper;
     }
 
     @Transactional
@@ -33,7 +45,9 @@ public class FeatureFlagService {
             throw new IllegalStateException(
                     "Flag key already exists in this environment: " + key);
         }
-        return featureFlagRepository.save(new FeatureFlag(environment, key, name, createdBy));
+        FeatureFlag flag = featureFlagRepository.save(new FeatureFlag(environment, key, name, createdBy));
+        recordSnapshot(flag, createdBy, "Flag created");
+        return flag;
     }
 
     public FeatureFlag getActiveById(UUID id) {
@@ -70,7 +84,10 @@ public class FeatureFlagService {
         flag.setName(name);
         flag.setDescription(description);
         flag.setUpdatedBy(updatedBy);
-        return featureFlagRepository.save(flag);
+        flag.setVersion(flag.getVersion() + 1);
+        FeatureFlag saved = featureFlagRepository.save(flag);
+        recordSnapshot(saved, updatedBy, "Flag details updated");
+        return saved;
     }
 
     @Transactional
@@ -78,7 +95,42 @@ public class FeatureFlagService {
         FeatureFlag flag = getActiveById(id);
         flag.setEnabled(enabled);
         flag.setUpdatedBy(updatedBy);
-        return featureFlagRepository.save(flag);
+        flag.setVersion(flag.getVersion() + 1);
+        FeatureFlag saved = featureFlagRepository.save(flag);
+        recordSnapshot(saved, updatedBy, enabled ? "Flag enabled" : "Flag disabled");
+        return saved;
+    }
+
+    /**
+     * Serializes the flag's current state and hands it to
+     * {@link FlagVersionService#recordSnapshot} against the flag's own
+     * {@code version} counter, so {@code flag_versions} always has a row
+     * matching the current {@code FeatureFlag.version}.
+     */
+    private void recordSnapshot(FeatureFlag flag, User changedBy, String changeSummary) {
+        try {
+            Map<String, Object> state = new LinkedHashMap<>();
+            state.put("id", flag.getId());
+            state.put("environmentId", flag.getEnvironment().getId());
+            state.put("key", flag.getKey());
+            state.put("name", flag.getName());
+            state.put("description", flag.getDescription());
+            state.put("enabled", flag.isEnabled());
+            state.put("flagType", flag.getFlagType().name());
+            state.put("version", flag.getVersion());
+
+            String snapshot = objectMapper.writeValueAsString(state);
+
+            flagVersionService.recordSnapshot(
+                    flag,
+                    flag.getVersion(),
+                    snapshot,
+                    changedBy,
+                    changeSummary
+            );
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to serialize feature flag snapshot", e);
+        }
     }
 
     @Transactional
