@@ -1,6 +1,8 @@
 package com.prateek.featureflag.project;
 
+import com.prateek.featureflag.audit.AuditLogService;
 import com.prateek.featureflag.organization.Organization;
+import com.prateek.featureflag.user.User;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,15 +17,32 @@ import java.util.UUID;
  * existing {@code findByOrganizationIdAndKeyAndDeletedAtIsNull} finder
  * rather than adding a new repository method (repositories are frozen
  * this batch).
+ * <p>
+ * State-changing operations are recorded via the existing
+ * {@link AuditLogService}. {@code ProjectController.create} calls the
+ * original 3-arg {@code create(Organization, String, String)}, which has no
+ * actor to attribute a log entry to, so that overload is left exactly as it
+ * was (unlogged) to avoid changing {@code ProjectController}. A new 4-arg
+ * {@code create(..., User actor)} overload is added alongside it, which
+ * performs the same creation and also logs "project created" — ready for a
+ * future caller that has an actor to pass. {@code rename} and
+ * {@code softDelete} had no external callers at all, so an {@code actor}
+ * parameter was added directly to each, matching the pattern used for
+ * {@code OrganizationService}. {@code updateKey} is untouched — it wasn't
+ * asked for and reusing the same reasoning would only obscure the diff.
  */
 @Service
 @Transactional(readOnly = true)
 public class ProjectService {
 
-    private final ProjectRepository projectRepository;
+    private static final String ENTITY_TYPE = "Project";
 
-    public ProjectService(ProjectRepository projectRepository) {
+    private final ProjectRepository projectRepository;
+    private final AuditLogService auditLogService;
+
+    public ProjectService(ProjectRepository projectRepository, AuditLogService auditLogService) {
         this.projectRepository = projectRepository;
+        this.auditLogService = auditLogService;
     }
 
     @Transactional
@@ -33,6 +52,17 @@ public class ProjectService {
                     "Project key already in use in this organization: " + key);
         }
         return projectRepository.save(new Project(organization, name, key));
+    }
+
+    /**
+     * Same creation logic as {@link #create(Organization, String, String)},
+     * plus an audit log entry attributed to {@code actor}.
+     */
+    @Transactional
+    public Project create(Organization organization, String name, String key, User actor) {
+        Project project = create(organization, name, key);
+        auditLogService.record(organization, actor, "project.created", ENTITY_TYPE, project.getId(), null);
+        return project;
     }
 
     public Project getActiveById(UUID id) {
@@ -46,10 +76,12 @@ public class ProjectService {
     }
 
     @Transactional
-    public Project rename(UUID id, String newName) {
+    public Project rename(UUID id, String newName, User actor) {
         Project project = getActiveById(id);
         project.setName(newName);
-        return projectRepository.save(project);
+        Project saved = projectRepository.save(project);
+        auditLogService.record(saved.getOrganization(), actor, "project.renamed", ENTITY_TYPE, saved.getId(), null);
+        return saved;
     }
 
     @Transactional
@@ -57,7 +89,7 @@ public class ProjectService {
         Project project = getActiveById(id);
         if (!project.getKey().equals(newKey)
                 && projectRepository.findByOrganizationIdAndKeyAndDeletedAtIsNull(
-                        project.getOrganization().getId(), newKey).isPresent()) {
+                project.getOrganization().getId(), newKey).isPresent()) {
             throw new IllegalStateException("Project key already in use in this organization: " + newKey);
         }
         project.setKey(newKey);
@@ -65,9 +97,10 @@ public class ProjectService {
     }
 
     @Transactional
-    public void softDelete(UUID id) {
+    public void softDelete(UUID id, User actor) {
         Project project = getActiveById(id);
         project.setDeletedAt(Instant.now());
-        projectRepository.save(project);
+        Project saved = projectRepository.save(project);
+        auditLogService.record(saved.getOrganization(), actor, "project.deleted", ENTITY_TYPE, saved.getId(), null);
     }
 }
