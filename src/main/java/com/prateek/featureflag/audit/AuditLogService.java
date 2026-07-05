@@ -29,7 +29,7 @@ public class AuditLogService {
 
     @Transactional
     public AuditLog record(Organization organization, User actor, String action, String entityType,
-                            UUID entityId, String metadata) {
+                           UUID entityId, String metadata) {
         return auditLogRepository.save(new AuditLog(organization, actor, action, entityType, entityId, metadata));
     }
 

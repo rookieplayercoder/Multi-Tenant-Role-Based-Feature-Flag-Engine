@@ -1,5 +1,6 @@
 package com.prateek.featureflag.organization;
 
+import com.prateek.featureflag.audit.AuditLogService;
 import com.prateek.featureflag.user.User;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.stereotype.Service;
@@ -18,17 +19,33 @@ import java.util.UUID;
  * Uniqueness is pre-checked here via {@link OrganizationRepository}'s
  * existing {@code existsBySlugAndDeletedAtIsNull}, so callers get a clear
  * {@link IllegalStateException} instead of a raw DB constraint violation.
+ * <p>
+ * State-changing operations are recorded via the existing
+ * {@link AuditLogService}. {@code createWithOwner} is the only path that
+ * logs "organization created" — the underlying {@code create} has no actor
+ * of its own to attribute the log entry to and is not called from anywhere
+ * else, so logging once at the {@code createWithOwner} level (with the
+ * founding owner as actor) covers it without double-logging. {@code rename}
+ * and {@code softDelete} previously had no external callers and no actor
+ * parameter; an actor was added to each so the resulting audit entries can
+ * be attributed, without touching any other class since nothing outside
+ * this service invoked them.
  */
 @Service
 @Transactional(readOnly = true)
 public class OrganizationService {
 
+    private static final String ENTITY_TYPE = "Organization";
+
     private final OrganizationRepository organizationRepository;
     private final MemberRepository memberRepository;
+    private final AuditLogService auditLogService;
 
-    public OrganizationService(OrganizationRepository organizationRepository, MemberRepository memberRepository) {
+    public OrganizationService(OrganizationRepository organizationRepository, MemberRepository memberRepository,
+                               AuditLogService auditLogService) {
         this.organizationRepository = organizationRepository;
         this.memberRepository = memberRepository;
+        this.auditLogService = auditLogService;
     }
 
     @Transactional
@@ -49,6 +66,8 @@ public class OrganizationService {
     public Organization createWithOwner(String name, String slug, User owner) {
         Organization organization = create(name, slug);
         memberRepository.save(new Member(organization, owner, MemberRole.OWNER));
+        auditLogService.record(organization, owner, "organization.created", ENTITY_TYPE,
+                organization.getId(), null);
         return organization;
     }
 
@@ -64,16 +83,19 @@ public class OrganizationService {
     }
 
     @Transactional
-    public Organization rename(UUID id, String newName) {
+    public Organization rename(UUID id, String newName, User actor) {
         Organization organization = getActiveById(id);
         organization.setName(newName);
-        return organizationRepository.save(organization);
+        Organization saved = organizationRepository.save(organization);
+        auditLogService.record(saved, actor, "organization.renamed", ENTITY_TYPE, saved.getId(), null);
+        return saved;
     }
 
     @Transactional
-    public void softDelete(UUID id) {
+    public void softDelete(UUID id, User actor) {
         Organization organization = getActiveById(id);
         organization.setDeletedAt(Instant.now());
-        organizationRepository.save(organization);
+        Organization saved = organizationRepository.save(organization);
+        auditLogService.record(saved, actor, "organization.deleted", ENTITY_TYPE, saved.getId(), null);
     }
 }
