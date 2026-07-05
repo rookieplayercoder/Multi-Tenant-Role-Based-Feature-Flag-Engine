@@ -24,7 +24,7 @@ import java.security.NoSuchAlgorithmException;
  * one explicit {@code @Transactional} method rather than relying on
  * {@code spring.jpa.open-in-view}. This class is called from a security
  * filter, which runs earlier in the servlet filter chain than Spring Boot
- * guarantees {@code OpenEntityManagerInViewFilter} to run relative to other
+ * guarantees {@code OpenEntityManagerInViewFilter} to run relative to other./
  * filters — unlike a controller, which always executes after the entire
  * filter chain. An explicit transaction removes that ordering assumption
  * entirely.

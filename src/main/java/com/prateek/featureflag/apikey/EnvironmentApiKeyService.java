@@ -37,6 +37,11 @@ public class EnvironmentApiKeyService {
                 .orElseThrow(() -> new EntityNotFoundException("No active API key found for provided hash"));
     }
 
+    public EnvironmentApiKey getById(UUID id) {
+        return environmentApiKeyRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("API key not found: " + id));
+    }
+
     public List<EnvironmentApiKey> listByEnvironment(UUID environmentId) {
         return environmentApiKeyRepository.findByEnvironmentId(environmentId);
     }
