@@ -2,6 +2,7 @@ package com.prateek.featureflag.flag;
 
 import com.prateek.featureflag.environment.Environment;
 import com.prateek.featureflag.environment.EnvironmentService;
+import com.prateek.featureflag.flag.dto.ChangeFlagTypeRequest;
 import com.prateek.featureflag.flag.dto.CreateFeatureFlagRequest;
 import com.prateek.featureflag.flag.dto.UpdateFeatureFlagRequest;
 import com.prateek.featureflag.organization.MemberRole;
@@ -52,8 +53,8 @@ public class FeatureFlagController {
     private final OrganizationAuthorizationService organizationAuthorizationService;
 
     public FeatureFlagController(FeatureFlagService featureFlagService,
-                                  EnvironmentService environmentService,
-                                  OrganizationAuthorizationService organizationAuthorizationService) {
+                                 EnvironmentService environmentService,
+                                 OrganizationAuthorizationService organizationAuthorizationService) {
         this.featureFlagService = featureFlagService;
         this.environmentService = environmentService;
         this.organizationAuthorizationService = organizationAuthorizationService;
@@ -61,8 +62,8 @@ public class FeatureFlagController {
 
     @PostMapping("/api/environments/{environmentId}/flags")
     public ResponseEntity<FeatureFlagResponse> create(@PathVariable UUID environmentId,
-                                                        @Valid @RequestBody CreateFeatureFlagRequest request,
-                                                        @AuthenticationPrincipal CustomUserDetails principal) {
+                                                      @Valid @RequestBody CreateFeatureFlagRequest request,
+                                                      @AuthenticationPrincipal CustomUserDetails principal) {
         try {
             Environment environment = environmentService.getActiveById(environmentId);
             authorize(environment.getProject().getOrganization().getId(), principal);
@@ -83,7 +84,7 @@ public class FeatureFlagController {
 
     @GetMapping("/api/environments/{environmentId}/flags")
     public ResponseEntity<List<FeatureFlagResponse>> listByEnvironment(@PathVariable UUID environmentId,
-                                                                        @AuthenticationPrincipal CustomUserDetails principal) {
+                                                                       @AuthenticationPrincipal CustomUserDetails principal) {
         try {
             Environment environment = environmentService.getActiveById(environmentId);
             authorize(environment.getProject().getOrganization().getId(), principal);
@@ -99,7 +100,7 @@ public class FeatureFlagController {
 
     @GetMapping("/api/flags/{flagId}")
     public ResponseEntity<FeatureFlagResponse> getById(@PathVariable UUID flagId,
-                                                         @AuthenticationPrincipal CustomUserDetails principal) {
+                                                       @AuthenticationPrincipal CustomUserDetails principal) {
         try {
             FeatureFlag flag = featureFlagService.getActiveById(flagId);
             authorize(flag.getEnvironment().getProject().getOrganization().getId(), principal);
@@ -111,8 +112,8 @@ public class FeatureFlagController {
 
     @PutMapping("/api/flags/{flagId}")
     public ResponseEntity<FeatureFlagResponse> update(@PathVariable UUID flagId,
-                                                        @Valid @RequestBody UpdateFeatureFlagRequest request,
-                                                        @AuthenticationPrincipal CustomUserDetails principal) {
+                                                      @Valid @RequestBody UpdateFeatureFlagRequest request,
+                                                      @AuthenticationPrincipal CustomUserDetails principal) {
         try {
             FeatureFlag flag = featureFlagService.getActiveById(flagId);
             authorize(flag.getEnvironment().getProject().getOrganization().getId(), principal);
@@ -127,14 +128,38 @@ public class FeatureFlagController {
 
     @PostMapping("/api/flags/{flagId}/enable")
     public ResponseEntity<FeatureFlagResponse> enable(@PathVariable UUID flagId,
-                                                        @AuthenticationPrincipal CustomUserDetails principal) {
+                                                      @AuthenticationPrincipal CustomUserDetails principal) {
         return setEnabled(flagId, true, principal);
     }
 
     @PostMapping("/api/flags/{flagId}/disable")
     public ResponseEntity<FeatureFlagResponse> disable(@PathVariable UUID flagId,
-                                                         @AuthenticationPrincipal CustomUserDetails principal) {
+                                                       @AuthenticationPrincipal CustomUserDetails principal) {
         return setEnabled(flagId, false, principal);
+    }
+
+    /**
+     * Switches which evaluation strategy a flag uses. Needed because
+     * {@code create} always defaults to {@code BOOLEAN}
+     * ({@link CreateFeatureFlagRequest} has no field for this by design) —
+     * without this endpoint, a flag's rule tree (targeting/rollout rules)
+     * could be built but never actually consulted, since
+     * {@code FeatureFlagEvaluationService} short-circuits {@code BOOLEAN}
+     * flags before touching the rule tree at all.
+     */
+    @PutMapping("/api/flags/{flagId}/type")
+    public ResponseEntity<FeatureFlagResponse> changeType(@PathVariable UUID flagId,
+                                                          @Valid @RequestBody ChangeFlagTypeRequest request,
+                                                          @AuthenticationPrincipal CustomUserDetails principal) {
+        try {
+            FeatureFlag flag = featureFlagService.getActiveById(flagId);
+            authorize(flag.getEnvironment().getProject().getOrganization().getId(), principal);
+
+            FeatureFlag updated = featureFlagService.changeType(flagId, request.flagType(), principal.getUser());
+            return ResponseEntity.ok(FeatureFlagResponse.from(updated));
+        } catch (EntityNotFoundException flagNotFound) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        }
     }
 
     private ResponseEntity<FeatureFlagResponse> setEnabled(UUID flagId, boolean enabled, CustomUserDetails principal) {
@@ -157,8 +182,8 @@ public class FeatureFlagController {
     }
 
     public record FeatureFlagResponse(UUID id, UUID environmentId, String key, String name, String description,
-                                       boolean enabled, FlagType flagType, Integer version,
-                                       Instant createdAt, Instant updatedAt) {
+                                      boolean enabled, FlagType flagType, Integer version,
+                                      Instant createdAt, Instant updatedAt) {
         static FeatureFlagResponse from(FeatureFlag flag) {
             return new FeatureFlagResponse(
                     flag.getId(),

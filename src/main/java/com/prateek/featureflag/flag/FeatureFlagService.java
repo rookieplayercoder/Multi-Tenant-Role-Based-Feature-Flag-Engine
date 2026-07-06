@@ -122,6 +122,26 @@ public class FeatureFlagService {
     }
 
     /**
+     * Changes a flag's evaluation strategy — e.g. from {@code BOOLEAN} (rule
+     * tree never consulted) to {@code PERCENTAGE}/{@code TARGETED} (rule
+     * tree drives the result). No FeatureFlagEvaluationService change is
+     * needed for this: it already branches purely on
+     * {@code flag.getFlagType()} at evaluation time, so updating this one
+     * field is sufficient to switch which code path a flag takes.
+     */
+    @Transactional
+    public FeatureFlag changeType(UUID id, FlagType flagType, User updatedBy) {
+        FeatureFlag flag = getActiveById(id);
+        flag.setFlagType(flagType);
+        flag.setUpdatedBy(updatedBy);
+        flag.setVersion(flag.getVersion() + 1);
+        FeatureFlag saved = featureFlagRepository.save(flag);
+        recordSnapshot(saved, updatedBy, "Flag type changed to " + flagType);
+        recordAudit(saved, updatedBy, "feature_flag.type_changed");
+        return saved;
+    }
+
+    /**
      * Serializes the flag's current state and hands it to
      * {@link FlagVersionService#recordSnapshot} against the flag's own
      * {@code version} counter, so {@code flag_versions} always has a row
