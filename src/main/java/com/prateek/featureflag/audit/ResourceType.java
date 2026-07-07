@@ -15,5 +15,6 @@ public enum ResourceType {
     ENVIRONMENT,
     FEATURE_FLAG,
     FEATURE_RULE,
-    MEMBER
+    MEMBER,
+    SEGMENT
 }
