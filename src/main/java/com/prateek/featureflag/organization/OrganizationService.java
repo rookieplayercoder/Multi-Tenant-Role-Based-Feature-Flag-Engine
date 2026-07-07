@@ -1,6 +1,8 @@
 package com.prateek.featureflag.organization;
 
+import com.prateek.featureflag.audit.AuditAction;
 import com.prateek.featureflag.audit.AuditLogService;
+import com.prateek.featureflag.audit.ResourceType;
 import com.prateek.featureflag.user.User;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.stereotype.Service;
@@ -35,7 +37,7 @@ import java.util.UUID;
 @Transactional(readOnly = true)
 public class OrganizationService {
 
-    private static final String ENTITY_TYPE = "Organization";
+    private static final ResourceType ENTITY_TYPE = ResourceType.ORGANIZATION;
 
     private final OrganizationRepository organizationRepository;
     private final MemberRepository memberRepository;
@@ -66,7 +68,7 @@ public class OrganizationService {
     public Organization createWithOwner(String name, String slug, User owner) {
         Organization organization = create(name, slug);
         memberRepository.save(new Member(organization, owner, MemberRole.OWNER));
-        auditLogService.record(organization, owner, "organization.created", ENTITY_TYPE,
+        auditLogService.record(organization, owner, AuditAction.ORGANIZATION_CREATED, ENTITY_TYPE,
                 organization.getId(), null);
         return organization;
     }
@@ -87,7 +89,7 @@ public class OrganizationService {
         Organization organization = getActiveById(id);
         organization.setName(newName);
         Organization saved = organizationRepository.save(organization);
-        auditLogService.record(saved, actor, "organization.renamed", ENTITY_TYPE, saved.getId(), null);
+        auditLogService.record(saved, actor, AuditAction.ORGANIZATION_RENAMED, ENTITY_TYPE, saved.getId(), null);
         return saved;
     }
 
@@ -96,6 +98,6 @@ public class OrganizationService {
         Organization organization = getActiveById(id);
         organization.setDeletedAt(Instant.now());
         Organization saved = organizationRepository.save(organization);
-        auditLogService.record(saved, actor, "organization.deleted", ENTITY_TYPE, saved.getId(), null);
+        auditLogService.record(saved, actor, AuditAction.ORGANIZATION_DELETED, ENTITY_TYPE, saved.getId(), null);
     }
 }

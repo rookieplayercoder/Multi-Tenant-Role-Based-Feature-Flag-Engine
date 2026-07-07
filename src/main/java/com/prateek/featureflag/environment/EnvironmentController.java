@@ -41,8 +41,8 @@ public class EnvironmentController {
     private final OrganizationAuthorizationService organizationAuthorizationService;
 
     public EnvironmentController(EnvironmentService environmentService,
-                                  ProjectService projectService,
-                                  OrganizationAuthorizationService organizationAuthorizationService) {
+                                 ProjectService projectService,
+                                 OrganizationAuthorizationService organizationAuthorizationService) {
         this.environmentService = environmentService;
         this.projectService = projectService;
         this.organizationAuthorizationService = organizationAuthorizationService;
@@ -50,8 +50,8 @@ public class EnvironmentController {
 
     @PostMapping
     public ResponseEntity<EnvironmentResponse> create(@PathVariable UUID projectId,
-                                                        @Valid @RequestBody CreateEnvironmentRequest request,
-                                                        @AuthenticationPrincipal CustomUserDetails principal) {
+                                                      @Valid @RequestBody CreateEnvironmentRequest request,
+                                                      @AuthenticationPrincipal CustomUserDetails principal) {
         try {
             Project project = projectService.getActiveById(projectId);
 
@@ -59,7 +59,7 @@ public class EnvironmentController {
                     project.getOrganization().getId(), principal.getUser().getId(),
                     MemberRole.OWNER, MemberRole.ADMIN);
 
-            Environment environment = environmentService.create(project, request.name(), request.key());
+            Environment environment = environmentService.create(project, request.name(), request.key(), principal.getUser());
             return ResponseEntity.status(HttpStatus.CREATED).body(EnvironmentResponse.from(environment));
         } catch (EntityNotFoundException projectNotFound) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).build();

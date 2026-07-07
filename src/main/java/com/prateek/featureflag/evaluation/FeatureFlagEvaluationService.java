@@ -1,8 +1,11 @@
 package com.prateek.featureflag.evaluation;
 
 import com.prateek.featureflag.audit.AuditLogService;
+import com.prateek.featureflag.audit.AuditAction;
+import com.prateek.featureflag.audit.ResourceType;
 import com.prateek.featureflag.flag.FeatureFlag;
 import com.prateek.featureflag.flag.FlagType;
+import com.prateek.featureflag.metrics.FlagEvaluationMetricService;
 import com.prateek.featureflag.rules.FeatureRule;
 import com.prateek.featureflag.rules.FeatureRuleService;
 import com.prateek.featureflag.user.User;
@@ -54,27 +57,45 @@ import java.util.Map;
  * closed here without either modifying {@code SdkEvaluationController} or
  * misrepresenting the audit trail, so it's called out rather than papered
  * over.
+ * <p>
+ * <b>Metrics (Module 11):</b> unlike audit logging, {@link FlagEvaluationMetricService}
+ * needs no {@code User} at all, so it's recorded inside the 2-arg
+ * {@link #evaluate(FeatureFlag, RuleEvaluator.EvaluationContext)} — the one
+ * method both real callers actually invoke today — giving full coverage of
+ * dashboard *and* SDK traffic from day one, unlike the audit trail above
+ * which is structurally limited to the subset of evaluations with a human
+ * actor.
  */
 @Service
 @Transactional(readOnly = true)
 public class FeatureFlagEvaluationService {
 
-    private static final String ENTITY_TYPE = "FeatureFlag";
+    private static final ResourceType ENTITY_TYPE = ResourceType.FEATURE_FLAG;
 
     private final FeatureRuleService featureRuleService;
     private final RuleEvaluator ruleEvaluator;
     private final AuditLogService auditLogService;
+    private final FlagEvaluationMetricService flagEvaluationMetricService;
     private final ObjectMapper objectMapper;
 
     public FeatureFlagEvaluationService(FeatureRuleService featureRuleService, RuleEvaluator ruleEvaluator,
-                                        AuditLogService auditLogService, ObjectMapper objectMapper) {
+                                        AuditLogService auditLogService,
+                                        FlagEvaluationMetricService flagEvaluationMetricService,
+                                        ObjectMapper objectMapper) {
         this.featureRuleService = featureRuleService;
         this.ruleEvaluator = ruleEvaluator;
         this.auditLogService = auditLogService;
+        this.flagEvaluationMetricService = flagEvaluationMetricService;
         this.objectMapper = objectMapper;
     }
 
     public EvaluationResult evaluate(FeatureFlag flag, RuleEvaluator.EvaluationContext context) {
+        EvaluationResult result = doEvaluate(flag, context);
+        flagEvaluationMetricService.record(flag, result.value(), result.reason().name());
+        return result;
+    }
+
+    private EvaluationResult doEvaluate(FeatureFlag flag, RuleEvaluator.EvaluationContext context) {
         if (!flag.isEnabled()) {
             return EvaluationResult.of(flag, false, EvaluationResult.Reason.FLAG_DISABLED);
         }
@@ -112,7 +133,7 @@ public class FeatureFlagEvaluationService {
         String metadataJson = objectMapper.writeValueAsString(metadata);
 
         auditLogService.record(
-                flag.getEnvironment().getProject().getOrganization(), actor, "feature_flag.evaluated",
+                flag.getEnvironment().getProject().getOrganization(), actor, AuditAction.FEATURE_FLAG_EVALUATED,
                 ENTITY_TYPE, flag.getId(), metadataJson);
 
         return result;

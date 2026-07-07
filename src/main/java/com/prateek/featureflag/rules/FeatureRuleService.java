@@ -1,6 +1,8 @@
 package com.prateek.featureflag.rules;
 
 import com.prateek.featureflag.audit.AuditLogService;
+import com.prateek.featureflag.audit.AuditAction;
+import com.prateek.featureflag.audit.ResourceType;
 import com.prateek.featureflag.flag.FeatureFlag;
 import com.prateek.featureflag.user.User;
 import jakarta.persistence.EntityNotFoundException;
@@ -41,7 +43,7 @@ import java.util.UUID;
 @Transactional(readOnly = true)
 public class FeatureRuleService {
 
-    private static final String ENTITY_TYPE = "FeatureRule";
+    private static final ResourceType ENTITY_TYPE = ResourceType.FEATURE_RULE;
 
     private final FeatureRuleRepository featureRuleRepository;
     private final AuditLogService auditLogService;
@@ -69,7 +71,7 @@ public class FeatureRuleService {
     public FeatureRule addGroupRule(FeatureFlag featureFlag, FeatureRule parentRule,
                                     LogicalOperator logicalOperator, int position, User actor) {
         FeatureRule rule = addGroupRule(featureFlag, parentRule, logicalOperator, position);
-        recordAudit(rule, actor, "feature_rule.created");
+        recordAudit(rule, actor, AuditAction.FEATURE_RULE_CREATED);
         return rule;
     }
 
@@ -97,7 +99,7 @@ public class FeatureRuleService {
                                         int position, User actor) {
         FeatureRule rule = addConditionRule(
                 featureFlag, parentRule, attribute, operator, value, rolloutPercentage, position);
-        recordAudit(rule, actor, "feature_rule.created");
+        recordAudit(rule, actor, AuditAction.FEATURE_RULE_CREATED);
         return rule;
     }
 
@@ -138,7 +140,7 @@ public class FeatureRuleService {
             }
         }
         FeatureRule saved = featureRuleRepository.save(rule);
-        recordAudit(saved, actor, "feature_rule.updated");
+        recordAudit(saved, actor, AuditAction.FEATURE_RULE_UPDATED);
         return saved;
     }
 
@@ -156,7 +158,7 @@ public class FeatureRuleService {
     @Transactional
     public FeatureRule updatePosition(UUID ruleId, int position, User actor) {
         FeatureRule saved = updatePosition(ruleId, position);
-        recordAudit(saved, actor, "feature_rule.reordered");
+        recordAudit(saved, actor, AuditAction.FEATURE_RULE_REORDERED);
         return saved;
     }
 
@@ -177,7 +179,7 @@ public class FeatureRuleService {
         FeatureFlag featureFlag = rule.getFeatureFlag();
         featureRuleRepository.delete(rule);
         auditLogService.record(
-                featureFlag.getEnvironment().getProject().getOrganization(), actor, "feature_rule.deleted",
+                featureFlag.getEnvironment().getProject().getOrganization(), actor, AuditAction.FEATURE_RULE_DELETED,
                 ENTITY_TYPE, ruleId, null);
     }
 
@@ -191,7 +193,7 @@ public class FeatureRuleService {
      * organization is reached via {@code FeatureFlag -> Environment -> Project},
      * since {@link FeatureRule} has no direct reference to one.
      */
-    private void recordAudit(FeatureRule rule, User actor, String action) {
+    private void recordAudit(FeatureRule rule, User actor, AuditAction action) {
         auditLogService.record(
                 rule.getFeatureFlag().getEnvironment().getProject().getOrganization(), actor, action, ENTITY_TYPE,
                 rule.getId(), null);

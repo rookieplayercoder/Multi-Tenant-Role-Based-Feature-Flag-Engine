@@ -34,7 +34,7 @@ public class SdkEvaluationController {
     private final FeatureFlagEvaluationService featureFlagEvaluationService;
 
     public SdkEvaluationController(FeatureFlagService featureFlagService,
-                                    FeatureFlagEvaluationService featureFlagEvaluationService) {
+                                   FeatureFlagEvaluationService featureFlagEvaluationService) {
         this.featureFlagService = featureFlagService;
         this.featureFlagEvaluationService = featureFlagEvaluationService;
     }

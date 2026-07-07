@@ -1,8 +1,11 @@
 package com.prateek.featureflag.flag;
 
+import com.prateek.featureflag.audit.AuditAction;
 import com.prateek.featureflag.audit.AuditLogService;
+import com.prateek.featureflag.audit.ResourceType;
 import com.prateek.featureflag.environment.Environment;
 import com.prateek.featureflag.user.User;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,7 +42,7 @@ import java.util.UUID;
 @Transactional(readOnly = true)
 public class FeatureFlagService {
 
-    private static final String ENTITY_TYPE = "FeatureFlag";
+    private static final ResourceType ENTITY_TYPE = ResourceType.FEATURE_FLAG;
 
     private final FeatureFlagRepository featureFlagRepository;
     private final FlagVersionService flagVersionService;
@@ -64,7 +67,7 @@ public class FeatureFlagService {
         }
         FeatureFlag flag = featureFlagRepository.save(new FeatureFlag(environment, key, name, createdBy));
         recordSnapshot(flag, createdBy, "Flag created");
-        recordAudit(flag, createdBy, "feature_flag.created");
+        recordAudit(flag, createdBy, AuditAction.FEATURE_FLAG_CREATED);
         return flag;
     }
 
@@ -105,7 +108,7 @@ public class FeatureFlagService {
         flag.setVersion(flag.getVersion() + 1);
         FeatureFlag saved = featureFlagRepository.save(flag);
         recordSnapshot(saved, updatedBy, "Flag details updated");
-        recordAudit(saved, updatedBy, "feature_flag.updated");
+        recordAudit(saved, updatedBy, AuditAction.FEATURE_FLAG_UPDATED);
         return saved;
     }
 
@@ -117,7 +120,7 @@ public class FeatureFlagService {
         flag.setVersion(flag.getVersion() + 1);
         FeatureFlag saved = featureFlagRepository.save(flag);
         recordSnapshot(saved, updatedBy, enabled ? "Flag enabled" : "Flag disabled");
-        recordAudit(saved, updatedBy, enabled ? "feature_flag.enabled" : "feature_flag.disabled");
+        recordAudit(saved, updatedBy, enabled ? AuditAction.FEATURE_FLAG_ENABLED : AuditAction.FEATURE_FLAG_DISABLED);
         return saved;
     }
 
@@ -137,8 +140,57 @@ public class FeatureFlagService {
         flag.setVersion(flag.getVersion() + 1);
         FeatureFlag saved = featureFlagRepository.save(flag);
         recordSnapshot(saved, updatedBy, "Flag type changed to " + flagType);
-        recordAudit(saved, updatedBy, "feature_flag.type_changed");
+        recordAudit(saved, updatedBy, AuditAction.FEATURE_FLAG_TYPE_CHANGED);
         return saved;
+    }
+
+    /**
+     * Restores a flag's mutable fields ({@code name}, {@code description},
+     * {@code enabled}, {@code flagType}) to whatever they were in a prior
+     * {@link FlagVersion}'s snapshot. Identity fields ({@code key},
+     * {@code environment}) are never touched — they're immutable on
+     * {@link FeatureFlag} in the first place and aren't part of what
+     * "rolling back" means here.
+     * <p>
+     * This does not delete or renumber history: like every other mutation
+     * in this class, it bumps {@code version} and appends a <em>new</em>
+     * {@link FlagVersion} row whose snapshot happens to match an old one,
+     * rather than rewriting/removing anything — {@code flag_versions} stays
+     * append-only, and rolling back is itself something you could roll
+     * back from.
+     */
+    @Transactional
+    public FeatureFlag rollback(UUID id, Integer targetVersion, User actor) {
+        FeatureFlag flag = getActiveById(id);
+        FlagVersion target = flagVersionService.getVersion(id, targetVersion);
+        FlagSnapshot snapshot = parseSnapshot(target.getSnapshot());
+
+        flag.setName(snapshot.name());
+        flag.setDescription(snapshot.description());
+        flag.setEnabled(snapshot.enabled());
+        flag.setFlagType(FlagType.valueOf(snapshot.flagType()));
+        flag.setUpdatedBy(actor);
+        flag.setVersion(flag.getVersion() + 1);
+        FeatureFlag saved = featureFlagRepository.save(flag);
+
+        recordSnapshot(saved, actor, "Rolled back to version " + targetVersion);
+        recordAudit(saved, actor, AuditAction.FEATURE_FLAG_ROLLED_BACK);
+        return saved;
+    }
+
+    /**
+     * Only the fields a rollback actually restores — deliberately narrower
+     * than the full snapshot payload written by {@link #recordSnapshot}
+     * (which also includes {@code id}/{@code environmentId}/{@code key}/
+     * {@code version} for the historical record). {@code @JsonIgnoreProperties}
+     * lets this reuse that same JSON without needing a matching wrapper type.
+     */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record FlagSnapshot(String name, String description, boolean enabled, String flagType) {
+    }
+
+    private FlagSnapshot parseSnapshot(String snapshotJson) {
+        return objectMapper.readValue(snapshotJson, FlagSnapshot.class);
     }
 
     /**
@@ -166,7 +218,7 @@ public class FeatureFlagService {
      * organization is reached via {@code Environment -> Project}, since
      * {@link FeatureFlag} has no direct reference to one.
      */
-    private void recordAudit(FeatureFlag flag, User actor, String action) {
+    private void recordAudit(FeatureFlag flag, User actor, AuditAction action) {
         auditLogService.record(
                 flag.getEnvironment().getProject().getOrganization(), actor, action, ENTITY_TYPE, flag.getId(), null);
     }
@@ -176,6 +228,6 @@ public class FeatureFlagService {
         FeatureFlag flag = getActiveById(id);
         flag.setDeletedAt(Instant.now());
         FeatureFlag saved = featureFlagRepository.save(flag);
-        recordAudit(saved, actor, "feature_flag.deleted");
+        recordAudit(saved, actor, AuditAction.FEATURE_FLAG_DELETED);
     }
 }

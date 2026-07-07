@@ -41,9 +41,9 @@ public class OrganizationController {
     private final UserService userService;
 
     public OrganizationController(OrganizationService organizationService,
-                                   MemberService memberService,
-                                   OrganizationAuthorizationService organizationAuthorizationService,
-                                   UserService userService) {
+                                  MemberService memberService,
+                                  OrganizationAuthorizationService organizationAuthorizationService,
+                                  UserService userService) {
         this.organizationService = organizationService;
         this.memberService = memberService;
         this.organizationAuthorizationService = organizationAuthorizationService;
@@ -56,7 +56,7 @@ public class OrganizationController {
      */
     @PostMapping
     public ResponseEntity<OrganizationResponse> create(@Valid @RequestBody CreateOrganizationRequest request,
-                                                         @AuthenticationPrincipal CustomUserDetails principal) {
+                                                       @AuthenticationPrincipal CustomUserDetails principal) {
         try {
             Organization organization = organizationService.createWithOwner(
                     request.name(), request.slug(), principal.getUser());
@@ -75,15 +75,15 @@ public class OrganizationController {
      */
     @PostMapping("/{organizationId}/members")
     public ResponseEntity<MemberResponse> inviteMember(@PathVariable UUID organizationId,
-                                                         @Valid @RequestBody InviteMemberRequest request,
-                                                         @AuthenticationPrincipal CustomUserDetails principal) {
+                                                       @Valid @RequestBody InviteMemberRequest request,
+                                                       @AuthenticationPrincipal CustomUserDetails principal) {
         organizationAuthorizationService.requireRole(
                 organizationId, principal.getUser().getId(), MemberRole.OWNER, MemberRole.ADMIN);
 
         try {
             Organization organization = organizationService.getActiveById(organizationId);
             User invitee = userService.getActiveByEmail(request.email());
-            Member member = memberService.invite(organization, invitee, request.role());
+            Member member = memberService.invite(organization, invitee, request.role(), principal.getUser());
             return ResponseEntity.status(HttpStatus.CREATED).body(MemberResponse.from(member));
         } catch (EntityNotFoundException notFound) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
@@ -99,7 +99,7 @@ public class OrganizationController {
     }
 
     public record MemberResponse(UUID id, UUID userId, String email, MemberRole role,
-                                  Instant invitedAt, Instant joinedAt) {
+                                 Instant invitedAt, Instant joinedAt) {
         static MemberResponse from(Member member) {
             return new MemberResponse(
                     member.getId(),

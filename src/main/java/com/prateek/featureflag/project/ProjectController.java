@@ -38,8 +38,8 @@ public class ProjectController {
     private final OrganizationAuthorizationService organizationAuthorizationService;
 
     public ProjectController(ProjectService projectService,
-                              OrganizationService organizationService,
-                              OrganizationAuthorizationService organizationAuthorizationService) {
+                             OrganizationService organizationService,
+                             OrganizationAuthorizationService organizationAuthorizationService) {
         this.projectService = projectService;
         this.organizationService = organizationService;
         this.organizationAuthorizationService = organizationAuthorizationService;
@@ -47,14 +47,14 @@ public class ProjectController {
 
     @PostMapping
     public ResponseEntity<ProjectResponse> create(@PathVariable UUID organizationId,
-                                                   @Valid @RequestBody CreateProjectRequest request,
-                                                   @AuthenticationPrincipal CustomUserDetails principal) {
+                                                  @Valid @RequestBody CreateProjectRequest request,
+                                                  @AuthenticationPrincipal CustomUserDetails principal) {
         organizationAuthorizationService.requireRole(
                 organizationId, principal.getUser().getId(), MemberRole.OWNER, MemberRole.ADMIN);
 
         try {
             Organization organization = organizationService.getActiveById(organizationId);
-            Project project = projectService.create(organization, request.name(), request.key());
+            Project project = projectService.create(organization, request.name(), request.key(), principal.getUser());
             return ResponseEntity.status(HttpStatus.CREATED).body(ProjectResponse.from(project));
         } catch (EntityNotFoundException organizationNotFound) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).build();

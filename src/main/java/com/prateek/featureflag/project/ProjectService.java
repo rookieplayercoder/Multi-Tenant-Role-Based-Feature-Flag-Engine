@@ -1,6 +1,6 @@
 package com.prateek.featureflag.project;
 
-import com.prateek.featureflag.audit.AuditLogService;
+import com.prateek.featureflag.audit.AuditAction;
 import com.prateek.featureflag.organization.Organization;
 import com.prateek.featureflag.user.User;
 import jakarta.persistence.EntityNotFoundException;
@@ -10,6 +10,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import com.prateek.featureflag.audit.ResourceType;
+import com.prateek.featureflag.audit.AuditLogService;
 
 /**
  * Service layer for {@link Project}. {@link ProjectRepository} exposes no
@@ -35,7 +37,7 @@ import java.util.UUID;
 @Transactional(readOnly = true)
 public class ProjectService {
 
-    private static final String ENTITY_TYPE = "Project";
+    private static final ResourceType ENTITY_TYPE = ResourceType.PROJECT;
 
     private final ProjectRepository projectRepository;
     private final AuditLogService auditLogService;
@@ -61,7 +63,7 @@ public class ProjectService {
     @Transactional
     public Project create(Organization organization, String name, String key, User actor) {
         Project project = create(organization, name, key);
-        auditLogService.record(organization, actor, "project.created", ENTITY_TYPE, project.getId(), null);
+        auditLogService.record(organization, actor, AuditAction.PROJECT_CREATED, ENTITY_TYPE, project.getId(), null);
         return project;
     }
 
@@ -80,7 +82,8 @@ public class ProjectService {
         Project project = getActiveById(id);
         project.setName(newName);
         Project saved = projectRepository.save(project);
-        auditLogService.record(saved.getOrganization(), actor, "project.renamed", ENTITY_TYPE, saved.getId(), null);
+        auditLogService.record(saved.getOrganization(), actor, AuditAction.PROJECT_RENAMED, ENTITY_TYPE,
+                saved.getId(), null);
         return saved;
     }
 
@@ -101,6 +104,7 @@ public class ProjectService {
         Project project = getActiveById(id);
         project.setDeletedAt(Instant.now());
         Project saved = projectRepository.save(project);
-        auditLogService.record(saved.getOrganization(), actor, "project.deleted", ENTITY_TYPE, saved.getId(), null);
+        auditLogService.record(saved.getOrganization(), actor, AuditAction.PROJECT_DELETED, ENTITY_TYPE,
+                saved.getId(), null);
     }
 }

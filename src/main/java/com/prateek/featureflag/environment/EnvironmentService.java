@@ -1,11 +1,13 @@
 package com.prateek.featureflag.environment;
 
+import com.prateek.featureflag.audit.AuditAction;
 import com.prateek.featureflag.audit.AuditLogService;
 import com.prateek.featureflag.project.Project;
 import com.prateek.featureflag.user.User;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.prateek.featureflag.audit.ResourceType;
 
 import java.time.Instant;
 import java.util.List;
@@ -33,7 +35,7 @@ import java.util.UUID;
 @Transactional(readOnly = true)
 public class EnvironmentService {
 
-    private static final String ENTITY_TYPE = "Environment";
+    private static final ResourceType ENTITY_TYPE = ResourceType.ENVIRONMENT;
 
     private final EnvironmentRepository environmentRepository;
     private final AuditLogService auditLogService;
@@ -59,7 +61,7 @@ public class EnvironmentService {
     @Transactional
     public Environment create(Project project, String name, EnvironmentType key, User actor) {
         Environment environment = create(project, name, key);
-        auditLogService.record(project.getOrganization(), actor, "environment.created", ENTITY_TYPE,
+        auditLogService.record(project.getOrganization(), actor, AuditAction.ENVIRONMENT_CREATED, ENTITY_TYPE,
                 environment.getId(), null);
         return environment;
     }
@@ -79,8 +81,8 @@ public class EnvironmentService {
         Environment environment = getActiveById(id);
         environment.setName(newName);
         Environment saved = environmentRepository.save(environment);
-        auditLogService.record(saved.getProject().getOrganization(), actor, "environment.renamed", ENTITY_TYPE,
-                saved.getId(), null);
+        auditLogService.record(saved.getProject().getOrganization(), actor, AuditAction.ENVIRONMENT_RENAMED,
+                ENTITY_TYPE, saved.getId(), null);
         return saved;
     }
 
@@ -89,7 +91,7 @@ public class EnvironmentService {
         Environment environment = getActiveById(id);
         environment.setDeletedAt(Instant.now());
         Environment saved = environmentRepository.save(environment);
-        auditLogService.record(saved.getProject().getOrganization(), actor, "environment.deleted", ENTITY_TYPE,
-                saved.getId(), null);
+        auditLogService.record(saved.getProject().getOrganization(), actor, AuditAction.ENVIRONMENT_DELETED,
+                ENTITY_TYPE, saved.getId(), null);
     }
 }

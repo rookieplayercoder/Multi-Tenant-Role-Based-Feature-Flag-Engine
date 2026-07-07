@@ -28,7 +28,7 @@ public class AuditLogService {
     }
 
     @Transactional
-    public AuditLog record(Organization organization, User actor, String action, String entityType,
+    public AuditLog record(Organization organization, User actor, AuditAction action, ResourceType entityType,
                            UUID entityId, String metadata) {
         return auditLogRepository.save(new AuditLog(organization, actor, action, entityType, entityId, metadata));
     }
@@ -37,7 +37,7 @@ public class AuditLogService {
         return auditLogRepository.findByOrganizationIdOrderByCreatedAtDesc(organizationId, pageable);
     }
 
-    public List<AuditLog> historyForEntity(String entityType, UUID entityId) {
+    public List<AuditLog> historyForEntity(ResourceType entityType, UUID entityId) {
         return auditLogRepository.findByEntityTypeAndEntityIdOrderByCreatedAtDesc(entityType, entityId);
     }
 }

@@ -1,6 +1,8 @@
 package com.prateek.featureflag.organization;
 
 import com.prateek.featureflag.audit.AuditLogService;
+import com.prateek.featureflag.audit.AuditAction;
+import com.prateek.featureflag.audit.ResourceType;
 import com.prateek.featureflag.user.User;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.stereotype.Service;
@@ -31,7 +33,7 @@ import java.util.UUID;
 @Transactional(readOnly = true)
 public class MemberService {
 
-    private static final String ENTITY_TYPE = "Member";
+    private static final ResourceType ENTITY_TYPE = ResourceType.MEMBER;
 
     private final MemberRepository memberRepository;
     private final AuditLogService auditLogService;
@@ -57,7 +59,7 @@ public class MemberService {
     @Transactional
     public Member invite(Organization organization, User user, MemberRole role, User actor) {
         Member member = invite(organization, user, role);
-        auditLogService.record(organization, actor, "member.invited", ENTITY_TYPE, member.getId(), null);
+        auditLogService.record(organization, actor, AuditAction.MEMBER_INVITED, ENTITY_TYPE, member.getId(), null);
         return member;
     }
 
@@ -66,7 +68,7 @@ public class MemberService {
         Member member = getById(memberId);
         member.setJoinedAt(Instant.now());
         Member saved = memberRepository.save(member);
-        auditLogService.record(saved.getOrganization(), actor, "member.invite_accepted", ENTITY_TYPE,
+        auditLogService.record(saved.getOrganization(), actor, AuditAction.MEMBER_INVITE_ACCEPTED, ENTITY_TYPE,
                 saved.getId(), null);
         return saved;
     }
@@ -76,7 +78,7 @@ public class MemberService {
         Member member = getById(memberId);
         member.setRole(newRole);
         Member saved = memberRepository.save(member);
-        auditLogService.record(saved.getOrganization(), actor, "member.role_changed", ENTITY_TYPE,
+        auditLogService.record(saved.getOrganization(), actor, AuditAction.MEMBER_ROLE_CHANGED, ENTITY_TYPE,
                 saved.getId(), null);
         return saved;
     }
@@ -99,6 +101,6 @@ public class MemberService {
         Member member = getById(memberId);
         Organization organization = member.getOrganization();
         memberRepository.delete(member);
-        auditLogService.record(organization, actor, "member.removed", ENTITY_TYPE, memberId, null);
+        auditLogService.record(organization, actor, AuditAction.MEMBER_REMOVED, ENTITY_TYPE, memberId, null);
     }
 }

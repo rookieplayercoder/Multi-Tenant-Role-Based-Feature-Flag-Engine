@@ -15,7 +15,6 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -42,12 +41,9 @@ import java.util.UUID;
  * No evaluation engine is invoked here — this batch only manages the rule
  * tree's shape and content, never resolves it against a user context.
  * <p>
- * {@code PUT} is the one place this controller touches
- * {@link FeatureRuleRepository} directly instead of a service: the
- * existing {@link FeatureRuleService} exposes {@code updatePosition} but no
- * general field-update method, and the service is frozen this batch. That
- * method is explicitly {@code @Transactional} since, unlike every other
- * method here, it isn't already wrapped by a transactional service call.
+ * {@code PUT} now goes through {@link FeatureRuleService#update} (added
+ * this module so the update can be audit-logged) rather than editing
+ * {@link FeatureRuleRepository} directly, as it did previously.
  */
 @RestController
 public class FeatureRuleController {
@@ -58,9 +54,9 @@ public class FeatureRuleController {
     private final OrganizationAuthorizationService organizationAuthorizationService;
 
     public FeatureRuleController(FeatureRuleService featureRuleService,
-                                  FeatureRuleRepository featureRuleRepository,
-                                  FeatureFlagService featureFlagService,
-                                  OrganizationAuthorizationService organizationAuthorizationService) {
+                                 FeatureRuleRepository featureRuleRepository,
+                                 FeatureFlagService featureFlagService,
+                                 OrganizationAuthorizationService organizationAuthorizationService) {
         this.featureRuleService = featureRuleService;
         this.featureRuleRepository = featureRuleRepository;
         this.featureFlagService = featureFlagService;
@@ -69,8 +65,8 @@ public class FeatureRuleController {
 
     @PostMapping("/api/flags/{flagId}/rules")
     public ResponseEntity<FeatureRuleResponse> create(@PathVariable UUID flagId,
-                                                       @Valid @RequestBody CreateFeatureRuleRequest request,
-                                                       @AuthenticationPrincipal CustomUserDetails principal) {
+                                                      @Valid @RequestBody CreateFeatureRuleRequest request,
+                                                      @AuthenticationPrincipal CustomUserDetails principal) {
         try {
             FeatureFlag flag = featureFlagService.getActiveById(flagId);
             authorize(flag.getEnvironment().getProject().getOrganization().getId(), principal);
@@ -86,10 +82,10 @@ public class FeatureRuleController {
 
             FeatureRule created = switch (request.ruleType()) {
                 case GROUP -> featureRuleService.addGroupRule(
-                        flag, parent, request.logicalOperator(), request.position());
+                        flag, parent, request.logicalOperator(), request.position(), principal.getUser());
                 case CONDITION -> featureRuleService.addConditionRule(
                         flag, parent, request.attribute(), request.operator(), request.value(),
-                        request.rolloutPercentage(), request.position());
+                        request.rolloutPercentage(), request.position(), principal.getUser());
             };
 
             return ResponseEntity.status(HttpStatus.CREATED).body(FeatureRuleResponse.from(created));
@@ -102,7 +98,7 @@ public class FeatureRuleController {
 
     @GetMapping("/api/flags/{flagId}/rules")
     public ResponseEntity<List<FeatureRuleResponse>> listRootRules(@PathVariable UUID flagId,
-                                                                    @AuthenticationPrincipal CustomUserDetails principal) {
+                                                                   @AuthenticationPrincipal CustomUserDetails principal) {
         try {
             FeatureFlag flag = featureFlagService.getActiveById(flagId);
             authorize(flag.getEnvironment().getProject().getOrganization().getId(), principal);
@@ -118,7 +114,7 @@ public class FeatureRuleController {
 
     @GetMapping("/api/rules/{ruleId}")
     public ResponseEntity<FeatureRuleResponse> getById(@PathVariable UUID ruleId,
-                                                        @AuthenticationPrincipal CustomUserDetails principal) {
+                                                       @AuthenticationPrincipal CustomUserDetails principal) {
         try {
             FeatureRule rule = getRuleOrThrow(ruleId);
             authorize(organizationIdOf(rule), principal);
@@ -130,7 +126,7 @@ public class FeatureRuleController {
 
     @GetMapping("/api/rules/{ruleId}/children")
     public ResponseEntity<List<FeatureRuleResponse>> listChildren(@PathVariable UUID ruleId,
-                                                                   @AuthenticationPrincipal CustomUserDetails principal) {
+                                                                  @AuthenticationPrincipal CustomUserDetails principal) {
         try {
             FeatureRule rule = getRuleOrThrow(ruleId);
             authorize(organizationIdOf(rule), principal);
@@ -145,34 +141,16 @@ public class FeatureRuleController {
     }
 
     @PutMapping("/api/rules/{ruleId}")
-    @Transactional
     public ResponseEntity<FeatureRuleResponse> update(@PathVariable UUID ruleId,
-                                                       @Valid @RequestBody UpdateFeatureRuleRequest request,
-                                                       @AuthenticationPrincipal CustomUserDetails principal) {
+                                                      @Valid @RequestBody UpdateFeatureRuleRequest request,
+                                                      @AuthenticationPrincipal CustomUserDetails principal) {
         try {
             FeatureRule rule = getRuleOrThrow(ruleId);
             authorize(organizationIdOf(rule), principal);
 
-            if (rule.getRuleType() == RuleType.GROUP) {
-                if (request.logicalOperator() != null) {
-                    rule.setLogicalOperator(request.logicalOperator());
-                }
-            } else {
-                if (request.attribute() != null) {
-                    rule.setAttribute(request.attribute());
-                }
-                if (request.operator() != null) {
-                    rule.setOperator(request.operator());
-                }
-                if (request.value() != null) {
-                    rule.setValue(request.value());
-                }
-                if (request.rolloutPercentage() != null) {
-                    rule.setRolloutPercentage(request.rolloutPercentage());
-                }
-            }
-
-            FeatureRule saved = featureRuleRepository.save(rule);
+            FeatureRule saved = featureRuleService.update(
+                    ruleId, request.logicalOperator(), request.attribute(), request.operator(), request.value(),
+                    request.rolloutPercentage(), principal.getUser());
             return ResponseEntity.ok(FeatureRuleResponse.from(saved));
         } catch (EntityNotFoundException ruleNotFound) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
@@ -183,13 +161,13 @@ public class FeatureRuleController {
 
     @PatchMapping("/api/rules/{ruleId}/position")
     public ResponseEntity<FeatureRuleResponse> updatePosition(@PathVariable UUID ruleId,
-                                                               @Valid @RequestBody PositionUpdateRequest request,
-                                                               @AuthenticationPrincipal CustomUserDetails principal) {
+                                                              @Valid @RequestBody PositionUpdateRequest request,
+                                                              @AuthenticationPrincipal CustomUserDetails principal) {
         try {
             FeatureRule rule = getRuleOrThrow(ruleId);
             authorize(organizationIdOf(rule), principal);
 
-            FeatureRule updated = featureRuleService.updatePosition(ruleId, request.position());
+            FeatureRule updated = featureRuleService.updatePosition(ruleId, request.position(), principal.getUser());
             return ResponseEntity.ok(FeatureRuleResponse.from(updated));
         } catch (EntityNotFoundException ruleNotFound) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
@@ -198,12 +176,12 @@ public class FeatureRuleController {
 
     @DeleteMapping("/api/rules/{ruleId}")
     public ResponseEntity<Void> delete(@PathVariable UUID ruleId,
-                                        @AuthenticationPrincipal CustomUserDetails principal) {
+                                       @AuthenticationPrincipal CustomUserDetails principal) {
         try {
             FeatureRule rule = getRuleOrThrow(ruleId);
             authorize(organizationIdOf(rule), principal);
 
-            featureRuleService.delete(ruleId);
+            featureRuleService.delete(ruleId, principal.getUser());
             return ResponseEntity.noContent().build();
         } catch (EntityNotFoundException ruleNotFound) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
@@ -230,8 +208,8 @@ public class FeatureRuleController {
     }
 
     public record FeatureRuleResponse(UUID id, UUID featureFlagId, UUID parentRuleId, RuleType ruleType,
-                                       LogicalOperator logicalOperator, String attribute, RuleOperator operator,
-                                       String value, Integer rolloutPercentage, Integer position) {
+                                      LogicalOperator logicalOperator, String attribute, RuleOperator operator,
+                                      String value, Integer rolloutPercentage, Integer position) {
         static FeatureRuleResponse from(FeatureRule rule) {
             return new FeatureRuleResponse(
                     rule.getId(),

@@ -4,6 +4,8 @@ import com.prateek.featureflag.organization.Organization;
 import com.prateek.featureflag.user.User;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -11,9 +13,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Size;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
@@ -53,24 +53,23 @@ public class AuditLog {
 
     @NotNull
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "actor_id", nullable = false, updatable = false)
+    @JoinColumn(name = "actor_user_id", nullable = false, updatable = false)
     private User actor;
 
-    @NotBlank
-    @Size(max = 100)
-    @Column(name = "action", nullable = false, updatable = false)
-    private String action;
-
-    @NotBlank
-    @Size(max = 50)
-    @Column(name = "entity_type", nullable = false, updatable = false)
-    private String entityType;
+    @NotNull
+    @Enumerated(EnumType.STRING)
+    @Column(name = "action", nullable = false, updatable = false, length = 100)
+    private AuditAction action;
 
     @NotNull
-    @Column(name = "entity_id", nullable = false, updatable = false)
+    @Enumerated(EnumType.STRING)
+    @Column(name = "resource_type", nullable = false, updatable = false, length = 100)
+    private ResourceType entityType;
+
+    @NotNull
+    @Column(name = "resource_id", nullable = false, updatable = false)
     private UUID entityId;
 
-    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "metadata", updatable = false)
     private String metadata;
 
@@ -81,12 +80,13 @@ public class AuditLog {
     protected AuditLog() {
     }
 
-    public AuditLog(Organization organization, User actor, String action, String entityType, UUID entityId) {
+    public AuditLog(Organization organization, User actor, AuditAction action, ResourceType entityType,
+                    UUID entityId) {
         this(organization, actor, action, entityType, entityId, null);
     }
 
-    public AuditLog(Organization organization, User actor, String action, String entityType, UUID entityId,
-                     String metadata) {
+    public AuditLog(Organization organization, User actor, AuditAction action, ResourceType entityType,
+                    UUID entityId, String metadata) {
         this.organization = organization;
         this.actor = actor;
         this.action = action;
@@ -107,11 +107,11 @@ public class AuditLog {
         return actor;
     }
 
-    public String getAction() {
+    public AuditAction getAction() {
         return action;
     }
 
-    public String getEntityType() {
+    public ResourceType getEntityType() {
         return entityType;
     }
 
