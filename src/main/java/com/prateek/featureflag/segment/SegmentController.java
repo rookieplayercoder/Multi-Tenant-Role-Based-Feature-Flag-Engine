@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.Instant;
@@ -56,9 +57,9 @@ public class SegmentController {
     private final OrganizationAuthorizationService organizationAuthorizationService;
 
     public SegmentController(SegmentService segmentService,
-                              SegmentUserService segmentUserService,
-                              OrganizationService organizationService,
-                              OrganizationAuthorizationService organizationAuthorizationService) {
+                             SegmentUserService segmentUserService,
+                             OrganizationService organizationService,
+                             OrganizationAuthorizationService organizationAuthorizationService) {
         this.segmentService = segmentService;
         this.segmentUserService = segmentUserService;
         this.organizationService = organizationService;
@@ -67,8 +68,8 @@ public class SegmentController {
 
     @PostMapping("/api/organizations/{organizationId}/segments")
     public ResponseEntity<SegmentResponse> create(@PathVariable UUID organizationId,
-                                                   @Valid @RequestBody CreateSegmentRequest request,
-                                                   @AuthenticationPrincipal CustomUserDetails principal) {
+                                                  @Valid @RequestBody CreateSegmentRequest request,
+                                                  @AuthenticationPrincipal CustomUserDetails principal) {
         requireManageRole(organizationId, principal);
 
         try {
@@ -88,7 +89,7 @@ public class SegmentController {
 
     @GetMapping("/api/organizations/{organizationId}/segments")
     public ResponseEntity<List<SegmentResponse>> listByOrganization(@PathVariable UUID organizationId,
-                                                                     @AuthenticationPrincipal CustomUserDetails principal) {
+                                                                    @AuthenticationPrincipal CustomUserDetails principal) {
         requireMembership(organizationId, principal);
 
         List<SegmentResponse> segments = segmentService.listActiveByOrganization(organizationId).stream()
@@ -99,7 +100,7 @@ public class SegmentController {
 
     @GetMapping("/api/segments/{segmentId}")
     public ResponseEntity<SegmentResponse> getById(@PathVariable UUID segmentId,
-                                                    @AuthenticationPrincipal CustomUserDetails principal) {
+                                                   @AuthenticationPrincipal CustomUserDetails principal) {
         try {
             Segment segment = segmentService.getActiveById(segmentId);
             requireMembership(segment.getOrganization().getId(), principal);
@@ -111,8 +112,8 @@ public class SegmentController {
 
     @PutMapping("/api/segments/{segmentId}")
     public ResponseEntity<SegmentResponse> update(@PathVariable UUID segmentId,
-                                                   @Valid @RequestBody UpdateSegmentRequest request,
-                                                   @AuthenticationPrincipal CustomUserDetails principal) {
+                                                  @Valid @RequestBody UpdateSegmentRequest request,
+                                                  @AuthenticationPrincipal CustomUserDetails principal) {
         try {
             Segment segment = segmentService.getActiveById(segmentId);
             requireManageRole(segment.getOrganization().getId(), principal);
@@ -129,7 +130,7 @@ public class SegmentController {
 
     @DeleteMapping("/api/segments/{segmentId}")
     public ResponseEntity<Void> delete(@PathVariable UUID segmentId,
-                                        @AuthenticationPrincipal CustomUserDetails principal) {
+                                       @AuthenticationPrincipal CustomUserDetails principal) {
         try {
             Segment segment = segmentService.getActiveById(segmentId);
             requireManageRole(segment.getOrganization().getId(), principal);
@@ -143,8 +144,8 @@ public class SegmentController {
 
     @PostMapping("/api/segments/{segmentId}/members")
     public ResponseEntity<SegmentMemberResponse> addMember(@PathVariable UUID segmentId,
-                                                            @Valid @RequestBody AddSegmentMemberRequest request,
-                                                            @AuthenticationPrincipal CustomUserDetails principal) {
+                                                           @Valid @RequestBody AddSegmentMemberRequest request,
+                                                           @AuthenticationPrincipal CustomUserDetails principal) {
         try {
             Segment segment = segmentService.getActiveById(segmentId);
             requireManageRole(segment.getOrganization().getId(), principal);
@@ -160,7 +161,7 @@ public class SegmentController {
 
     @GetMapping("/api/segments/{segmentId}/members")
     public ResponseEntity<List<SegmentMemberResponse>> listMembers(@PathVariable UUID segmentId,
-                                                                    @AuthenticationPrincipal CustomUserDetails principal) {
+                                                                   @AuthenticationPrincipal CustomUserDetails principal) {
         try {
             Segment segment = segmentService.getActiveById(segmentId);
             requireMembership(segment.getOrganization().getId(), principal);
@@ -174,9 +175,10 @@ public class SegmentController {
         }
     }
 
-    @DeleteMapping("/api/segments/{segmentId}/members/{userIdentifier}")
-    public ResponseEntity<Void> removeMember(@PathVariable UUID segmentId, @PathVariable String userIdentifier,
-                                              @AuthenticationPrincipal CustomUserDetails principal) {
+    @DeleteMapping("/api/segments/{segmentId}/members")
+    public ResponseEntity<Void> removeMember(@PathVariable UUID segmentId,
+                                             @RequestParam String userIdentifier,
+                                             @AuthenticationPrincipal CustomUserDetails principal) {
         try {
             Segment segment = segmentService.getActiveById(segmentId);
             requireManageRole(segment.getOrganization().getId(), principal);
@@ -200,7 +202,7 @@ public class SegmentController {
     }
 
     public record SegmentResponse(UUID id, UUID organizationId, String name, String description,
-                                   Instant createdAt, Instant updatedAt) {
+                                  Instant createdAt, Instant updatedAt) {
         static SegmentResponse from(Segment segment) {
             return new SegmentResponse(
                     segment.getId(), segment.getOrganization().getId(), segment.getName(), segment.getDescription(),
