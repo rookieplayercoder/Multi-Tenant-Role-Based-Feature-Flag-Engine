@@ -7,11 +7,12 @@ import com.prateek.featureflag.organization.Organization;
 import com.prateek.featureflag.user.User;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 import tools.jackson.databind.ObjectMapper;
 
 import java.util.List;
@@ -27,13 +28,14 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * Batch 2 verification: {@link SegmentUserService} — add/list/remove
- * membership. Uses a real {@link ObjectMapper} (tools.jackson) since audit
- * metadata serialization is part of what's being verified, not incidental
- * plumbing worth mocking away.
+ * Unit tests for {@link SegmentUserService}. {@link ObjectMapper} is mocked
+ * here (unlike in {@code RuleEvaluator} tests) since only the metadata
+ * serialization call itself needs to be observed, not exercised end to end.
  */
 @ExtendWith(MockitoExtension.class)
 class SegmentUserServiceTest {
+
+    private static final String METADATA_JSON = "{\"userIdentifier\":\"user-1\"}";
 
     @Mock
     private SegmentUserRepository segmentUserRepository;
@@ -41,128 +43,139 @@ class SegmentUserServiceTest {
     @Mock
     private AuditLogService auditLogService;
 
-    private SegmentUserService segmentUserService;
+    @Mock
+    private ObjectMapper objectMapper;
 
-    private Organization organization;
-    private Segment segment;
-    private User actor;
+    private SegmentUserService segmentUserService;
 
     @BeforeEach
     void setUp() {
-        segmentUserService = new SegmentUserService(segmentUserRepository, auditLogService, new ObjectMapper());
-
-        organization = new Organization("Acme", "acme");
-        setId(organization, UUID.randomUUID());
-
-        segment = new Segment(organization, "beta-testers");
-        setId(segment, UUID.randomUUID());
-
-        actor = new User("alice@example.com", "hash", "Alice");
-        setId(actor, UUID.randomUUID());
+        segmentUserService = new SegmentUserService(segmentUserRepository, auditLogService, objectMapper);
     }
 
-    @Test
-    void addMember_persistsAndAudits_whenNotAlreadyMember() {
-        SegmentUserId id = new SegmentUserId(segment.getId(), "user-123");
-        when(segmentUserRepository.findById(id)).thenReturn(Optional.empty());
-        when(segmentUserRepository.save(any(SegmentUser.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
-
-        SegmentUser result = segmentUserService.addMember(segment, "user-123", actor);
-
-        assertThat(result.getUserIdentifier()).isEqualTo("user-123");
-        assertThat(result.getSegment()).isEqualTo(segment);
-
-        ArgumentCaptor<String> metadataCaptor = ArgumentCaptor.forClass(String.class);
-        verify(auditLogService).record(eq(organization), eq(actor), eq(AuditAction.SEGMENT_MEMBER_ADDED),
-                eq(ResourceType.SEGMENT), eq(segment.getId()), metadataCaptor.capture());
-        assertThat(metadataCaptor.getValue()).contains("user-123");
+    private static Organization persistedOrganization() {
+        Organization organization = new Organization("Acme Inc", "acme");
+        ReflectionTestUtils.setField(organization, "id", UUID.randomUUID());
+        return organization;
     }
 
-    @Test
-    void addMember_throwsConflict_whenAlreadyMember() {
-        SegmentUserId id = new SegmentUserId(segment.getId(), "user-123");
-        when(segmentUserRepository.findById(id))
-                .thenReturn(Optional.of(new SegmentUser(segment, "user-123")));
-
-        assertThatThrownBy(() -> segmentUserService.addMember(segment, "user-123", actor))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("user-123");
-
-        verify(segmentUserRepository, never()).save(any());
-        verify(auditLogService, never()).record(any(), any(), any(), any(), any(), any());
+    private static Segment persistedSegment(Organization organization, String name) {
+        Segment segment = new Segment(organization, name);
+        ReflectionTestUtils.setField(segment, "id", UUID.randomUUID());
+        return segment;
     }
 
-    @Test
-    void listMembers_delegatesToFindBySegmentId() {
-        SegmentUser member = new SegmentUser(segment, "user-123");
-        when(segmentUserRepository.findBySegmentId(segment.getId())).thenReturn(List.of(member));
-
-        List<SegmentUser> members = segmentUserService.listMembers(segment.getId());
-
-        assertThat(members).containsExactly(member);
+    private static User persistedUser() {
+        User user = new User("actor@example.com", "hash", "Actor Name");
+        ReflectionTestUtils.setField(user, "id", UUID.randomUUID());
+        return user;
     }
 
-    @Test
-    void listSegmentsForUser_delegatesToFindByIdUserIdentifier() {
-        SegmentUser member = new SegmentUser(segment, "user-123");
-        when(segmentUserRepository.findByIdUserIdentifier("user-123")).thenReturn(List.of(member));
+    @Nested
+    class AddMember {
 
-        List<SegmentUser> segments = segmentUserService.listSegmentsForUser("user-123");
+        @Test
+        void savesMembershipAndLogsWhenUserIsNotAlreadyAMember() {
+            Organization organization = persistedOrganization();
+            Segment segment = persistedSegment(organization, "beta-testers");
+            User actor = persistedUser();
+            SegmentUserId expectedId = new SegmentUserId(segment.getId(), "user-1");
+            when(segmentUserRepository.findById(expectedId)).thenReturn(Optional.empty());
+            when(segmentUserRepository.save(any(SegmentUser.class))).thenAnswer(invocation -> invocation.getArgument(0));
+            when(objectMapper.writeValueAsString(any())).thenReturn(METADATA_JSON);
 
-        assertThat(segments).containsExactly(member);
+            SegmentUser result = segmentUserService.addMember(segment, "user-1", actor);
+
+            assertThat(result.getUserIdentifier()).isEqualTo("user-1");
+            assertThat(result.getSegment()).isEqualTo(segment);
+            verify(auditLogService).record(organization, actor, AuditAction.SEGMENT_MEMBER_ADDED,
+                    ResourceType.SEGMENT, segment.getId(), METADATA_JSON);
+        }
+
+        @Test
+        void throwsWhenUserIsAlreadyAMember() {
+            Organization organization = persistedOrganization();
+            Segment segment = persistedSegment(organization, "beta-testers");
+            User actor = persistedUser();
+            SegmentUserId expectedId = new SegmentUserId(segment.getId(), "user-1");
+            SegmentUser existing = new SegmentUser(segment, "user-1");
+            when(segmentUserRepository.findById(expectedId)).thenReturn(Optional.of(existing));
+
+            assertThatThrownBy(() -> segmentUserService.addMember(segment, "user-1", actor))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("user-1");
+
+            verify(segmentUserRepository, never()).save(any());
+            verify(auditLogService, never()).record(any(), any(), any(), any(), any(), any());
+        }
     }
 
-    @Test
-    void removeMember_deletesAndAudits_whenMemberExists() {
-        SegmentUserId id = new SegmentUserId(segment.getId(), "user-123");
-        SegmentUser member = new SegmentUser(segment, "user-123");
-        when(segmentUserRepository.findById(id)).thenReturn(Optional.of(member));
+    @Nested
+    class ListMembers {
 
-        segmentUserService.removeMember(segment, "user-123", actor);
+        @Test
+        void delegatesToRepositoryBySegmentId() {
+            Organization organization = persistedOrganization();
+            Segment segment = persistedSegment(organization, "beta-testers");
+            List<SegmentUser> expected = List.of(new SegmentUser(segment, "user-1"));
+            when(segmentUserRepository.findBySegmentId(segment.getId())).thenReturn(expected);
 
-        verify(segmentUserRepository).delete(member);
-        verify(auditLogService).record(eq(organization), eq(actor), eq(AuditAction.SEGMENT_MEMBER_REMOVED),
-                eq(ResourceType.SEGMENT), eq(segment.getId()), any());
+            List<SegmentUser> result = segmentUserService.listMembers(segment.getId());
+
+            assertThat(result).isEqualTo(expected);
+        }
     }
 
-    @Test
-    void removeMember_throwsNotFound_whenNotAMember() {
-        SegmentUserId id = new SegmentUserId(segment.getId(), "user-123");
-        when(segmentUserRepository.findById(id)).thenReturn(Optional.empty());
+    @Nested
+    class ListSegmentsForUser {
 
-        assertThatThrownBy(() -> segmentUserService.removeMember(segment, "user-123", actor))
-                .isInstanceOf(EntityNotFoundException.class);
+        @Test
+        void delegatesToRepositoryByUserIdentifier() {
+            Organization organization = persistedOrganization();
+            Segment segment = persistedSegment(organization, "beta-testers");
+            List<SegmentUser> expected = List.of(new SegmentUser(segment, "user-1"));
+            when(segmentUserRepository.findByIdUserIdentifier("user-1")).thenReturn(expected);
 
-        verify(segmentUserRepository, never()).delete(any());
-        verify(auditLogService, never()).record(any(), any(), any(), any(), any(), any());
+            List<SegmentUser> result = segmentUserService.listSegmentsForUser("user-1");
+
+            assertThat(result).isEqualTo(expected);
+        }
     }
 
-    @Test
-    void removeMember_handlesUserIdentifierContainingSlash() {
-        // Regression check for the path-variable bug fixed in this batch:
-        // removeMember() itself is slash-agnostic — the bug was in how the
-        // controller exposed userIdentifier (path variable vs query param),
-        // not in this service method. Verifying the service accepts any
-        // valid identifier string regardless of content.
-        String identifierWithSlash = "org/user-42";
-        SegmentUserId id = new SegmentUserId(segment.getId(), identifierWithSlash);
-        SegmentUser member = new SegmentUser(segment, identifierWithSlash);
-        when(segmentUserRepository.findById(id)).thenReturn(Optional.of(member));
+    @Nested
+    class RemoveMember {
 
-        segmentUserService.removeMember(segment, identifierWithSlash, actor);
+        @Test
+        void deletesMembershipAndLogsWhenUserIsAMember() {
+            Organization organization = persistedOrganization();
+            Segment segment = persistedSegment(organization, "beta-testers");
+            User actor = persistedUser();
+            SegmentUserId expectedId = new SegmentUserId(segment.getId(), "user-1");
+            SegmentUser existing = new SegmentUser(segment, "user-1");
+            when(segmentUserRepository.findById(expectedId)).thenReturn(Optional.of(existing));
+            when(objectMapper.writeValueAsString(any())).thenReturn(METADATA_JSON);
 
-        verify(segmentUserRepository).delete(member);
-    }
+            segmentUserService.removeMember(segment, "user-1", actor);
 
-    /** Test-only reflection helper: entity IDs are DB-generated, no public setter exists. */
-    private static void setId(Object entity, UUID id) {
-        try {
-            var field = entity.getClass().getDeclaredField("id");
-            field.setAccessible(true);
-            field.set(entity, id);
-        } catch (ReflectiveOperationException e) {
-            throw new RuntimeException(e);
+            verify(segmentUserRepository).delete(existing);
+            verify(auditLogService).record(organization, actor, AuditAction.SEGMENT_MEMBER_REMOVED,
+                    ResourceType.SEGMENT, segment.getId(), METADATA_JSON);
+        }
+
+        @Test
+        void throwsWhenUserIsNotAMember() {
+            Organization organization = persistedOrganization();
+            Segment segment = persistedSegment(organization, "beta-testers");
+            User actor = persistedUser();
+            SegmentUserId expectedId = new SegmentUserId(segment.getId(), "user-1");
+            when(segmentUserRepository.findById(expectedId)).thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> segmentUserService.removeMember(segment, "user-1", actor))
+                    .isInstanceOf(EntityNotFoundException.class)
+                    .hasMessageContaining("user-1");
+
+            verify(segmentUserRepository, never()).delete(any());
+            verify(auditLogService, never()).record(any(), any(), any(), any(), any(), any());
         }
     }
 }

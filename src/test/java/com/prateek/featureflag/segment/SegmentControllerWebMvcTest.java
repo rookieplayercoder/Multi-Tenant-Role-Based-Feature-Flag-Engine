@@ -1,5 +1,9 @@
 package com.prateek.featureflag.segment;
 
+import com.prateek.featureflag.security.CustomUserDetailsService;
+import com.prateek.featureflag.security.apikey.ApiKeyAuthenticationService;
+import com.prateek.featureflag.security.jwt.JwtService;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import com.prateek.featureflag.organization.MemberRole;
 import com.prateek.featureflag.organization.Organization;
 import com.prateek.featureflag.organization.OrganizationAuthorizationService;
@@ -56,6 +60,16 @@ class SegmentControllerWebMvcTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+
+    @MockitoBean
+    private ApiKeyAuthenticationService apiKeyAuthenticationService;
+
+    @MockitoBean
+    private JwtService jwtService;
+
+    @MockitoBean
+    private CustomUserDetailsService customUserDetailsService;
 
     @MockitoBean
     private SegmentService segmentService;

@@ -1,0 +1,38 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${DB_NAME:-feature_flag_engine}
+      POSTGRES_USER: ${DB_USERNAME:-postgres}
+      # No insecure default here on purpose — see .env.example.
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in a .env file}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-postgres} -d ${DB_NAME:-feature_flag_engine}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      # Activates application-docker.properties, which reads everything
+      # below from the environment instead of application.properties'
+      # hardcoded localhost/plaintext values.
+      SPRING_PROFILES_ACTIVE: docker
+      DB_URL: jdbc:postgresql://db:5432/${DB_NAME:-feature_flag_engine}
+      DB_USERNAME: ${DB_USERNAME:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in a .env file}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in a .env file — see .env.example}
+      JWT_EXPIRATION_MINUTES: ${JWT_EXPIRATION_MINUTES:-60}
+    ports:
+      - "8080:8080"
+
+volumes:
+  pgdata:

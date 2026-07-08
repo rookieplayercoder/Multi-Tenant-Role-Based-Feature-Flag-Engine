@@ -1,5 +1,9 @@
 package com.prateek.featureflag.evaluation;
 
+import com.prateek.featureflag.security.CustomUserDetailsService;
+import com.prateek.featureflag.security.apikey.ApiKeyAuthenticationService;
+import com.prateek.featureflag.security.jwt.JwtService;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import com.prateek.featureflag.environment.Environment;
 import com.prateek.featureflag.environment.EnvironmentService;
 import com.prateek.featureflag.environment.EnvironmentType;
@@ -41,9 +45,20 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * {@code SegmentControllerWebMvcTest} (see its Javadoc): slice test with
  * mocked services, filters disabled, principal injected directly.
  */
+
 @WebMvcTest(EvaluationController.class)
 @AutoConfigureMockMvc(addFilters = false)
 class EvaluationControllerWebMvcTest {
+
+
+    @MockitoBean
+    private ApiKeyAuthenticationService apiKeyAuthenticationService;
+
+    @MockitoBean
+    private JwtService jwtService;
+
+    @MockitoBean
+    private CustomUserDetailsService customUserDetailsService;
 
     @Autowired
     private MockMvc mockMvc;

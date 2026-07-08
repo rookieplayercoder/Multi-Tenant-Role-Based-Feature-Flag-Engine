@@ -2,22 +2,26 @@ package com.prateek.featureflag.project;
 
 import com.prateek.featureflag.audit.AuditAction;
 import com.prateek.featureflag.audit.AuditLogService;
+import com.prateek.featureflag.audit.ResourceType;
 import com.prateek.featureflag.organization.Organization;
 import com.prateek.featureflag.user.User;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
+import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -32,151 +36,237 @@ class ProjectServiceTest {
     private AuditLogService auditLogService;
 
     private ProjectService projectService;
-    private Organization organization;
-    private User actor;
 
     @BeforeEach
     void setUp() {
         projectService = new ProjectService(projectRepository, auditLogService);
-        organization = new Organization("Acme", "acme");
-        setId(organization, UUID.randomUUID());
-        actor = new User("dev@example.com", "hash", "Dev");
-        setId(actor, UUID.randomUUID());
     }
 
-    @Test
-    void create_threeArg_persistsButDoesNotAudit() {
-        when(projectRepository.findByOrganizationIdAndKeyAndDeletedAtIsNull(organization.getId(), "web"))
-                .thenReturn(Optional.empty());
-        when(projectRepository.save(any(Project.class))).thenAnswer(inv -> inv.getArgument(0));
-
-        Project project = projectService.create(organization, "Web", "web");
-
-        assertThat(project.getKey()).isEqualTo("web");
-        verify(auditLogService, never()).record(any(), any(), any(), any(), any(), any());
+    private static Organization persistedOrganization() {
+        Organization organization = new Organization("Acme Inc", "acme");
+        ReflectionTestUtils.setField(organization, "id", UUID.randomUUID());
+        return organization;
     }
 
-    @Test
-    void create_fourArg_persistsAndAudits() {
-        // This is the overload ProjectController.create actually calls (passing
-        // principal.getUser() as actor) - despite ProjectService's own Javadoc
-        // claiming the controller uses the unlogged 3-arg version. Worth fixing
-        // that comment separately; this test locks in the real (audited) behavior.
-        when(projectRepository.findByOrganizationIdAndKeyAndDeletedAtIsNull(organization.getId(), "web"))
-                .thenReturn(Optional.empty());
-        when(projectRepository.save(any(Project.class))).thenAnswer(inv -> {
-            Project p = inv.getArgument(0);
-            setId(p, UUID.randomUUID());
-            return p;
-        });
-
-        Project project = projectService.create(organization, "Web", "web", actor);
-
-        verify(auditLogService).record(eq(organization), eq(actor), eq(AuditAction.PROJECT_CREATED),
-                any(), eq(project.getId()), any());
+    private static Project persistedProject(Organization organization, String name, String key) {
+        Project project = new Project(organization, name, key);
+        ReflectionTestUtils.setField(project, "id", UUID.randomUUID());
+        return project;
     }
 
-    @Test
-    void create_throwsConflict_whenKeyAlreadyUsedInOrganization() {
-        when(projectRepository.findByOrganizationIdAndKeyAndDeletedAtIsNull(organization.getId(), "web"))
-                .thenReturn(Optional.of(new Project(organization, "Existing", "web")));
-
-        assertThatThrownBy(() -> projectService.create(organization, "Web", "web"))
-                .isInstanceOf(IllegalStateException.class);
-
-        verify(projectRepository, never()).save(any());
+    private static User persistedUser() {
+        User user = new User("actor@example.com", "hash", "Actor Name");
+        ReflectionTestUtils.setField(user, "id", UUID.randomUUID());
+        return user;
     }
 
-    @Test
-    void rename_updatesNameAndAudits() {
-        Project project = new Project(organization, "Old", "web");
-        setId(project, UUID.randomUUID());
-        when(projectRepository.findById(project.getId())).thenReturn(Optional.of(project));
-        when(projectRepository.save(any(Project.class))).thenAnswer(inv -> inv.getArgument(0));
+    @Nested
+    class CreateWithoutActor {
 
-        Project renamed = projectService.rename(project.getId(), "New", actor);
+        @Test
+        void savesProjectWhenKeyIsAvailableInOrganization() {
+            Organization organization = persistedOrganization();
+            when(projectRepository.findByOrganizationIdAndKeyAndDeletedAtIsNull(organization.getId(), "web"))
+                    .thenReturn(Optional.empty());
+            when(projectRepository.save(any(Project.class))).thenAnswer(invocation -> {
+                Project project = invocation.getArgument(0);
+                ReflectionTestUtils.setField(project, "id", UUID.randomUUID());
+                return project;
+            });
 
-        assertThat(renamed.getName()).isEqualTo("New");
-        verify(auditLogService).record(eq(organization), eq(actor), eq(AuditAction.PROJECT_RENAMED),
-                any(), eq(project.getId()), any());
+            Project result = projectService.create(organization, "Web App", "web");
+
+            assertThat(result.getId()).isNotNull();
+            assertThat(result.getKey()).isEqualTo("web");
+            verify(auditLogService, never()).record(any(), any(), any(), any(), any(), any());
+        }
+
+        @Test
+        void throwsWhenKeyAlreadyUsedInOrganization() {
+            Organization organization = persistedOrganization();
+            Project existing = persistedProject(organization, "Web App", "web");
+            when(projectRepository.findByOrganizationIdAndKeyAndDeletedAtIsNull(organization.getId(), "web"))
+                    .thenReturn(Optional.of(existing));
+
+            assertThatThrownBy(() -> projectService.create(organization, "Web App", "web"))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("web");
+
+            verify(projectRepository, never()).save(any());
+        }
     }
 
-    @Test
-    void updateKey_succeeds_whenNewKeyIsFree() {
-        Project project = new Project(organization, "Web", "web");
-        setId(project, UUID.randomUUID());
-        when(projectRepository.findById(project.getId())).thenReturn(Optional.of(project));
-        when(projectRepository.findByOrganizationIdAndKeyAndDeletedAtIsNull(organization.getId(), "web-v2"))
-                .thenReturn(Optional.empty());
-        when(projectRepository.save(any(Project.class))).thenAnswer(inv -> inv.getArgument(0));
+    @Nested
+    class CreateWithActor {
 
-        Project updated = projectService.updateKey(project.getId(), "web-v2");
+        @Test
+        void savesProjectAndLogsCreation() {
+            Organization organization = persistedOrganization();
+            User actor = persistedUser();
+            when(projectRepository.findByOrganizationIdAndKeyAndDeletedAtIsNull(organization.getId(), "web"))
+                    .thenReturn(Optional.empty());
+            when(projectRepository.save(any(Project.class))).thenAnswer(invocation -> {
+                Project project = invocation.getArgument(0);
+                ReflectionTestUtils.setField(project, "id", UUID.randomUUID());
+                return project;
+            });
 
-        assertThat(updated.getKey()).isEqualTo("web-v2");
+            Project result = projectService.create(organization, "Web App", "web", actor);
+
+            assertThat(result.getId()).isNotNull();
+            verify(auditLogService).record(organization, actor, AuditAction.PROJECT_CREATED,
+                    ResourceType.PROJECT, result.getId(), null);
+        }
+
+        @Test
+        void propagatesKeyConflictWithoutLogging() {
+            Organization organization = persistedOrganization();
+            User actor = persistedUser();
+            Project existing = persistedProject(organization, "Web App", "web");
+            when(projectRepository.findByOrganizationIdAndKeyAndDeletedAtIsNull(organization.getId(), "web"))
+                    .thenReturn(Optional.of(existing));
+
+            assertThatThrownBy(() -> projectService.create(organization, "Web App", "web", actor))
+                    .isInstanceOf(IllegalStateException.class);
+
+            verify(auditLogService, never()).record(any(), any(), any(), any(), any(), any());
+        }
     }
 
-    @Test
-    void updateKey_throwsConflict_whenNewKeyAlreadyUsedByAnotherProject() {
-        Project project = new Project(organization, "Web", "web");
-        setId(project, UUID.randomUUID());
-        when(projectRepository.findById(project.getId())).thenReturn(Optional.of(project));
-        when(projectRepository.findByOrganizationIdAndKeyAndDeletedAtIsNull(organization.getId(), "taken"))
-                .thenReturn(Optional.of(new Project(organization, "Other", "taken")));
+    @Nested
+    class GetActiveById {
 
-        assertThatThrownBy(() -> projectService.updateKey(project.getId(), "taken"))
-                .isInstanceOf(IllegalStateException.class);
+        @Test
+        void returnsProjectWhenActive() {
+            Organization organization = persistedOrganization();
+            Project project = persistedProject(organization, "Web App", "web");
+            when(projectRepository.findById(project.getId())).thenReturn(Optional.of(project));
 
-        verify(projectRepository, never()).save(any());
+            Project result = projectService.getActiveById(project.getId());
+
+            assertThat(result).isEqualTo(project);
+        }
+
+        @Test
+        void throwsWhenNotFound() {
+            UUID id = UUID.randomUUID();
+            when(projectRepository.findById(id)).thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> projectService.getActiveById(id))
+                    .isInstanceOf(EntityNotFoundException.class);
+        }
+
+        @Test
+        void throwsWhenSoftDeleted() {
+            Organization organization = persistedOrganization();
+            Project project = persistedProject(organization, "Web App", "web");
+            project.setDeletedAt(Instant.now());
+            when(projectRepository.findById(project.getId())).thenReturn(Optional.of(project));
+
+            assertThatThrownBy(() -> projectService.getActiveById(project.getId()))
+                    .isInstanceOf(EntityNotFoundException.class);
+        }
     }
 
-    @Test
-    void updateKey_isNoOp_whenNewKeyEqualsCurrentKey() {
-        // Guards against the self-collision false-positive: findByOrganizationIdAndKey...
-        // would otherwise find the project's own row and incorrectly reject "no-op" renames.
-        Project project = new Project(organization, "Web", "web");
-        setId(project, UUID.randomUUID());
-        when(projectRepository.findById(project.getId())).thenReturn(Optional.of(project));
-        when(projectRepository.save(any(Project.class))).thenAnswer(inv -> inv.getArgument(0));
+    @Nested
+    class ListActiveByOrganization {
 
-        Project updated = projectService.updateKey(project.getId(), "web");
+        @Test
+        void delegatesToRepository() {
+            UUID organizationId = UUID.randomUUID();
+            Organization organization = persistedOrganization();
+            List<Project> expected = List.of(persistedProject(organization, "Web App", "web"));
+            when(projectRepository.findByOrganizationIdAndDeletedAtIsNull(organizationId)).thenReturn(expected);
 
-        assertThat(updated.getKey()).isEqualTo("web");
-        verify(projectRepository, never())
-                .findByOrganizationIdAndKeyAndDeletedAtIsNull(organization.getId(), "web");
+            List<Project> result = projectService.listActiveByOrganization(organizationId);
+
+            assertThat(result).isEqualTo(expected);
+        }
     }
 
-    @Test
-    void softDelete_setsDeletedAtAndAudits() {
-        Project project = new Project(organization, "Web", "web");
-        setId(project, UUID.randomUUID());
-        when(projectRepository.findById(project.getId())).thenReturn(Optional.of(project));
-        when(projectRepository.save(any(Project.class))).thenAnswer(inv -> inv.getArgument(0));
+    @Nested
+    class Rename {
 
-        projectService.softDelete(project.getId(), actor);
+        @Test
+        void updatesNameAndLogsRename() {
+            Organization organization = persistedOrganization();
+            Project project = persistedProject(organization, "Web App", "web");
+            User actor = persistedUser();
+            when(projectRepository.findById(project.getId())).thenReturn(Optional.of(project));
+            when(projectRepository.save(project)).thenReturn(project);
 
-        assertThat(project.isDeleted()).isTrue();
-        verify(auditLogService).record(eq(organization), eq(actor), eq(AuditAction.PROJECT_DELETED),
-                any(), eq(project.getId()), any());
+            Project result = projectService.rename(project.getId(), "Web Application", actor);
+
+            assertThat(result.getName()).isEqualTo("Web Application");
+            verify(auditLogService).record(organization, actor, AuditAction.PROJECT_RENAMED,
+                    ResourceType.PROJECT, project.getId(), null);
+        }
     }
 
-    @Test
-    void getActiveById_throwsNotFound_whenSoftDeleted() {
-        Project project = new Project(organization, "Web", "web");
-        setId(project, UUID.randomUUID());
-        project.setDeletedAt(java.time.Instant.now());
-        when(projectRepository.findById(project.getId())).thenReturn(Optional.of(project));
+    @Nested
+    class UpdateKey {
 
-        assertThatThrownBy(() -> projectService.getActiveById(project.getId()))
-                .isInstanceOf(EntityNotFoundException.class);
+        @Test
+        void skipsUniquenessCheckWhenKeyUnchanged() {
+            Organization organization = persistedOrganization();
+            Project project = persistedProject(organization, "Web App", "web");
+            when(projectRepository.findById(project.getId())).thenReturn(Optional.of(project));
+            when(projectRepository.save(project)).thenReturn(project);
+
+            Project result = projectService.updateKey(project.getId(), "web");
+
+            assertThat(result.getKey()).isEqualTo("web");
+            verify(projectRepository, never())
+                    .findByOrganizationIdAndKeyAndDeletedAtIsNull(any(), any());
+        }
+
+        @Test
+        void updatesKeyWhenNewKeyIsAvailable() {
+            Organization organization = persistedOrganization();
+            Project project = persistedProject(organization, "Web App", "web");
+            when(projectRepository.findById(project.getId())).thenReturn(Optional.of(project));
+            when(projectRepository.findByOrganizationIdAndKeyAndDeletedAtIsNull(organization.getId(), "webapp"))
+                    .thenReturn(Optional.empty());
+            when(projectRepository.save(project)).thenReturn(project);
+
+            Project result = projectService.updateKey(project.getId(), "webapp");
+
+            assertThat(result.getKey()).isEqualTo("webapp");
+        }
+
+        @Test
+        void throwsWhenNewKeyAlreadyUsedInOrganization() {
+            Organization organization = persistedOrganization();
+            Project project = persistedProject(organization, "Web App", "web");
+            Project conflicting = persistedProject(organization, "Other", "webapp");
+            when(projectRepository.findById(project.getId())).thenReturn(Optional.of(project));
+            when(projectRepository.findByOrganizationIdAndKeyAndDeletedAtIsNull(organization.getId(), "webapp"))
+                    .thenReturn(Optional.of(conflicting));
+
+            assertThatThrownBy(() -> projectService.updateKey(project.getId(), "webapp"))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("webapp");
+
+            verify(projectRepository, never()).save(any());
+        }
     }
 
-    private static void setId(Object entity, UUID id) {
-        try {
-            var field = entity.getClass().getDeclaredField("id");
-            field.setAccessible(true);
-            field.set(entity, id);
-        } catch (ReflectiveOperationException e) {
-            throw new RuntimeException(e);
+    @Nested
+    class SoftDelete {
+
+        @Test
+        void marksDeletedAndLogsDeletion() {
+            Organization organization = persistedOrganization();
+            Project project = persistedProject(organization, "Web App", "web");
+            User actor = persistedUser();
+            when(projectRepository.findById(project.getId())).thenReturn(Optional.of(project));
+            when(projectRepository.save(project)).thenReturn(project);
+
+            projectService.softDelete(project.getId(), actor);
+
+            assertThat(project.isDeleted()).isTrue();
+            verify(auditLogService).record(organization, actor, AuditAction.PROJECT_DELETED,
+                    ResourceType.PROJECT, project.getId(), null);
         }
     }
 }

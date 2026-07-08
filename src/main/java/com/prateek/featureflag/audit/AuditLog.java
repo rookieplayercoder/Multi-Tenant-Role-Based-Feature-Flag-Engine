@@ -23,7 +23,16 @@ import java.util.UUID;
 
 /**
  * Generic, append-only activity trail entry for an {@link Organization}.
- * Maps exactly to the {@code audit_logs} table in V1__initial_schema.sql.
+ * Maps exactly to the {@code audit_logs} table in V1__initial_schema.sql —
+ * {@code entity_type}/{@code entity_id}/{@code actor_id} are the real
+ * column names. (A previous edit changed the {@code @Column}/
+ * {@code @JoinColumn} name attributes to {@code resource_type}/
+ * {@code resource_id}/{@code actor_user_id} without a companion Flyway
+ * migration actually renaming the columns — that mismatch is what
+ * produced the "missing column [resource_id]" validation error. Fixed
+ * back here rather than migrating the DB, since the Java field names
+ * (entityType/entityId/actor) were never actually changed, only the
+ * column-name mapping drifted.)
  * <p>
  * Deliberately generic rather than per-entity: {@code entityType} +
  * {@code entityId} identify what changed, without a direct FK to any
@@ -53,7 +62,7 @@ public class AuditLog {
 
     @NotNull
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "actor_user_id", nullable = false, updatable = false)
+    @JoinColumn(name = "actor_id", nullable = false, updatable = false)
     private User actor;
 
     @NotNull
@@ -63,13 +72,14 @@ public class AuditLog {
 
     @NotNull
     @Enumerated(EnumType.STRING)
-    @Column(name = "resource_type", nullable = false, updatable = false, length = 100)
+    @Column(name = "entity_type", nullable = false, updatable = false, length = 50)
     private ResourceType entityType;
 
     @NotNull
-    @Column(name = "resource_id", nullable = false, updatable = false)
+    @Column(name = "entity_id", nullable = false, updatable = false)
     private UUID entityId;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "metadata", updatable = false)
     private String metadata;
 

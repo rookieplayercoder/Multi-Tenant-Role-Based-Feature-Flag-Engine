@@ -2,23 +2,27 @@ package com.prateek.featureflag.environment;
 
 import com.prateek.featureflag.audit.AuditAction;
 import com.prateek.featureflag.audit.AuditLogService;
+import com.prateek.featureflag.audit.ResourceType;
 import com.prateek.featureflag.organization.Organization;
 import com.prateek.featureflag.project.Project;
 import com.prateek.featureflag.user.User;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
+import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -33,108 +37,186 @@ class EnvironmentServiceTest {
     private AuditLogService auditLogService;
 
     private EnvironmentService environmentService;
-    private Project project;
-    private User actor;
 
     @BeforeEach
     void setUp() {
         environmentService = new EnvironmentService(environmentRepository, auditLogService);
-        Organization organization = new Organization("Acme", "acme");
-        setId(organization, UUID.randomUUID());
-        project = new Project(organization, "Web", "web");
-        setId(project, UUID.randomUUID());
-        actor = new User("dev@example.com", "hash", "Dev");
-        setId(actor, UUID.randomUUID());
     }
 
-    @Test
-    void create_threeArg_persistsButDoesNotAudit() {
-        when(environmentRepository.findByProjectIdAndKeyAndDeletedAtIsNull(project.getId(), EnvironmentType.DEV))
-                .thenReturn(Optional.empty());
-        when(environmentRepository.save(any(Environment.class))).thenAnswer(inv -> inv.getArgument(0));
-
-        Environment environment = environmentService.create(project, "Development", EnvironmentType.DEV);
-
-        assertThat(environment.getKey()).isEqualTo(EnvironmentType.DEV);
-        verify(auditLogService, never()).record(any(), any(), any(), any(), any(), any());
+    private static Organization persistedOrganization() {
+        Organization organization = new Organization("Acme Inc", "acme");
+        ReflectionTestUtils.setField(organization, "id", UUID.randomUUID());
+        return organization;
     }
 
-    @Test
-    void create_fourArg_persistsAndAudits() {
-        // Same discrepancy as ProjectService: EnvironmentController.create actually
-        // calls this audited overload, not the unlogged 3-arg one the class Javadoc
-        // describes. Test locks in the real (audited) behavior.
-        when(environmentRepository.findByProjectIdAndKeyAndDeletedAtIsNull(project.getId(), EnvironmentType.DEV))
-                .thenReturn(Optional.empty());
-        when(environmentRepository.save(any(Environment.class))).thenAnswer(inv -> {
-            Environment e = inv.getArgument(0);
-            setId(e, UUID.randomUUID());
-            return e;
-        });
-
-        Environment environment = environmentService.create(project, "Development", EnvironmentType.DEV, actor);
-
-        verify(auditLogService).record(eq(project.getOrganization()), eq(actor), eq(AuditAction.ENVIRONMENT_CREATED),
-                any(), eq(environment.getId()), any());
+    private static Project persistedProject(Organization organization) {
+        Project project = new Project(organization, "Web App", "web");
+        ReflectionTestUtils.setField(project, "id", UUID.randomUUID());
+        return project;
     }
 
-    @Test
-    void create_throwsConflict_whenKeyAlreadyExistsForProject() {
-        when(environmentRepository.findByProjectIdAndKeyAndDeletedAtIsNull(project.getId(), EnvironmentType.DEV))
-                .thenReturn(Optional.of(new Environment(project, "Existing Dev", EnvironmentType.DEV)));
-
-        assertThatThrownBy(() -> environmentService.create(project, "Development", EnvironmentType.DEV))
-                .isInstanceOf(IllegalStateException.class);
-
-        verify(environmentRepository, never()).save(any());
+    private static Environment persistedEnvironment(Project project, String name, EnvironmentType key) {
+        Environment environment = new Environment(project, name, key);
+        ReflectionTestUtils.setField(environment, "id", UUID.randomUUID());
+        return environment;
     }
 
-    @Test
-    void rename_updatesNameAndAudits() {
-        Environment environment = new Environment(project, "Old", EnvironmentType.DEV);
-        setId(environment, UUID.randomUUID());
-        when(environmentRepository.findById(environment.getId())).thenReturn(Optional.of(environment));
-        when(environmentRepository.save(any(Environment.class))).thenAnswer(inv -> inv.getArgument(0));
-
-        Environment renamed = environmentService.rename(environment.getId(), "New", actor);
-
-        assertThat(renamed.getName()).isEqualTo("New");
-        verify(auditLogService).record(eq(project.getOrganization()), eq(actor), eq(AuditAction.ENVIRONMENT_RENAMED),
-                any(), eq(environment.getId()), any());
+    private static User persistedUser() {
+        User user = new User("actor@example.com", "hash", "Actor Name");
+        ReflectionTestUtils.setField(user, "id", UUID.randomUUID());
+        return user;
     }
 
-    @Test
-    void softDelete_setsDeletedAtAndAudits() {
-        Environment environment = new Environment(project, "Development", EnvironmentType.DEV);
-        setId(environment, UUID.randomUUID());
-        when(environmentRepository.findById(environment.getId())).thenReturn(Optional.of(environment));
-        when(environmentRepository.save(any(Environment.class))).thenAnswer(inv -> inv.getArgument(0));
+    @Nested
+    class CreateWithoutActor {
 
-        environmentService.softDelete(environment.getId(), actor);
+        @Test
+        void savesEnvironmentWhenKeyIsAvailableInProject() {
+            Organization organization = persistedOrganization();
+            Project project = persistedProject(organization);
+            when(environmentRepository.findByProjectIdAndKeyAndDeletedAtIsNull(project.getId(), EnvironmentType.DEV))
+                    .thenReturn(Optional.empty());
+            when(environmentRepository.save(any(Environment.class))).thenAnswer(invocation -> {
+                Environment environment = invocation.getArgument(0);
+                ReflectionTestUtils.setField(environment, "id", UUID.randomUUID());
+                return environment;
+            });
 
-        assertThat(environment.isDeleted()).isTrue();
-        verify(auditLogService).record(eq(project.getOrganization()), eq(actor), eq(AuditAction.ENVIRONMENT_DELETED),
-                any(), eq(environment.getId()), any());
+            Environment result = environmentService.create(project, "Development", EnvironmentType.DEV);
+
+            assertThat(result.getId()).isNotNull();
+            assertThat(result.getKey()).isEqualTo(EnvironmentType.DEV);
+            verify(auditLogService, never()).record(any(), any(), any(), any(), any(), any());
+        }
+
+        @Test
+        void throwsWhenKeyAlreadyUsedInProject() {
+            Organization organization = persistedOrganization();
+            Project project = persistedProject(organization);
+            Environment existing = persistedEnvironment(project, "Development", EnvironmentType.DEV);
+            when(environmentRepository.findByProjectIdAndKeyAndDeletedAtIsNull(project.getId(), EnvironmentType.DEV))
+                    .thenReturn(Optional.of(existing));
+
+            assertThatThrownBy(() -> environmentService.create(project, "Development", EnvironmentType.DEV))
+                    .isInstanceOf(IllegalStateException.class);
+
+            verify(environmentRepository, never()).save(any());
+        }
     }
 
-    @Test
-    void getActiveById_throwsNotFound_whenSoftDeleted() {
-        Environment environment = new Environment(project, "Development", EnvironmentType.DEV);
-        setId(environment, UUID.randomUUID());
-        environment.setDeletedAt(java.time.Instant.now());
-        when(environmentRepository.findById(environment.getId())).thenReturn(Optional.of(environment));
+    @Nested
+    class CreateWithActor {
 
-        assertThatThrownBy(() -> environmentService.getActiveById(environment.getId()))
-                .isInstanceOf(EntityNotFoundException.class);
+        @Test
+        void savesEnvironmentAndLogsCreationAgainstProjectOrganization() {
+            Organization organization = persistedOrganization();
+            Project project = persistedProject(organization);
+            User actor = persistedUser();
+            when(environmentRepository.findByProjectIdAndKeyAndDeletedAtIsNull(project.getId(), EnvironmentType.DEV))
+                    .thenReturn(Optional.empty());
+            when(environmentRepository.save(any(Environment.class))).thenAnswer(invocation -> {
+                Environment environment = invocation.getArgument(0);
+                ReflectionTestUtils.setField(environment, "id", UUID.randomUUID());
+                return environment;
+            });
+
+            Environment result = environmentService.create(project, "Development", EnvironmentType.DEV, actor);
+
+            verify(auditLogService).record(organization, actor, AuditAction.ENVIRONMENT_CREATED,
+                    ResourceType.ENVIRONMENT, result.getId(), null);
+        }
     }
 
-    private static void setId(Object entity, UUID id) {
-        try {
-            var field = entity.getClass().getDeclaredField("id");
-            field.setAccessible(true);
-            field.set(entity, id);
-        } catch (ReflectiveOperationException e) {
-            throw new RuntimeException(e);
+    @Nested
+    class GetActiveById {
+
+        @Test
+        void returnsEnvironmentWhenActive() {
+            Organization organization = persistedOrganization();
+            Project project = persistedProject(organization);
+            Environment environment = persistedEnvironment(project, "Development", EnvironmentType.DEV);
+            when(environmentRepository.findById(environment.getId())).thenReturn(Optional.of(environment));
+
+            Environment result = environmentService.getActiveById(environment.getId());
+
+            assertThat(result).isEqualTo(environment);
+        }
+
+        @Test
+        void throwsWhenNotFound() {
+            UUID id = UUID.randomUUID();
+            when(environmentRepository.findById(id)).thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> environmentService.getActiveById(id))
+                    .isInstanceOf(EntityNotFoundException.class);
+        }
+
+        @Test
+        void throwsWhenSoftDeleted() {
+            Organization organization = persistedOrganization();
+            Project project = persistedProject(organization);
+            Environment environment = persistedEnvironment(project, "Development", EnvironmentType.DEV);
+            environment.setDeletedAt(Instant.now());
+            when(environmentRepository.findById(environment.getId())).thenReturn(Optional.of(environment));
+
+            assertThatThrownBy(() -> environmentService.getActiveById(environment.getId()))
+                    .isInstanceOf(EntityNotFoundException.class);
+        }
+    }
+
+    @Nested
+    class ListActiveByProject {
+
+        @Test
+        void delegatesToRepository() {
+            Organization organization = persistedOrganization();
+            Project project = persistedProject(organization);
+            List<Environment> expected = List.of(persistedEnvironment(project, "Development", EnvironmentType.DEV));
+            when(environmentRepository.findByProjectIdAndDeletedAtIsNull(project.getId())).thenReturn(expected);
+
+            List<Environment> result = environmentService.listActiveByProject(project.getId());
+
+            assertThat(result).isEqualTo(expected);
+        }
+    }
+
+    @Nested
+    class Rename {
+
+        @Test
+        void updatesNameAndLogsRenameAgainstProjectOrganization() {
+            Organization organization = persistedOrganization();
+            Project project = persistedProject(organization);
+            Environment environment = persistedEnvironment(project, "Development", EnvironmentType.DEV);
+            User actor = persistedUser();
+            when(environmentRepository.findById(environment.getId())).thenReturn(Optional.of(environment));
+            when(environmentRepository.save(environment)).thenReturn(environment);
+
+            Environment result = environmentService.rename(environment.getId(), "Dev", actor);
+
+            assertThat(result.getName()).isEqualTo("Dev");
+            verify(auditLogService).record(organization, actor, AuditAction.ENVIRONMENT_RENAMED,
+                    ResourceType.ENVIRONMENT, environment.getId(), null);
+        }
+    }
+
+    @Nested
+    class SoftDelete {
+
+        @Test
+        void marksDeletedAndLogsDeletionAgainstProjectOrganization() {
+            Organization organization = persistedOrganization();
+            Project project = persistedProject(organization);
+            Environment environment = persistedEnvironment(project, "Development", EnvironmentType.DEV);
+            User actor = persistedUser();
+            when(environmentRepository.findById(environment.getId())).thenReturn(Optional.of(environment));
+            when(environmentRepository.save(environment)).thenReturn(environment);
+
+            environmentService.softDelete(environment.getId(), actor);
+
+            assertThat(environment.isDeleted()).isTrue();
+            verify(auditLogService).record(organization, actor, AuditAction.ENVIRONMENT_DELETED,
+                    ResourceType.ENVIRONMENT, environment.getId(), null);
         }
     }
 }

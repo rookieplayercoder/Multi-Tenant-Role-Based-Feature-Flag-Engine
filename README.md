@@ -15,6 +15,7 @@ Every organization can have multiple projects, each with multiple environments (
 - [API Endpoints](#api-endpoints)
 - [Authentication & Authorization](#authentication--authorization)
 - [Getting Started](#getting-started)
+- [Running with Docker](#running-with-docker)
 - [Testing](#testing)
 - [Project Structure](#project-structure)
 - [Known Limitations / Roadmap](#known-limitations--roadmap)
@@ -71,6 +72,37 @@ PostgreSQL  ──▶  schema owned by Flyway migrations, UUID primary keys,
 - **SDK clients** → `X-Api-Key: <key>` → `ApiKeyAuthenticationFilter`, resolving directly to the `Environment` the key belongs to (no human role check — the key itself is the authorization boundary for machine clients)
 
 **The rule engine** (`evaluation` package) walks a `FeatureRule` tree recursively: `GROUP` nodes combine their children with `AND`/`OR`/`NOT`; `CONDITION` nodes require **both** an attribute check and a rollout-percentage check to pass (either can be absent/vacuously true), which is what lets one node express pure attribute targeting, pure percentage rollout, or both combined. Percentage bucketing is a deterministic SHA-256 hash of `flagKey:userIdentifier` — the same user always lands in the same bucket for a given flag.
+
+### Diagram
+
+```mermaid
+flowchart TD
+    subgraph Clients
+        Dashboard[Dashboard User<br/>JWT]
+        SDK[SDK Client<br/>API Key]
+    end
+
+    subgraph Security[Security Filters]
+        JwtFilter[JwtAuthenticationFilter]
+        ApiKeyFilter[ApiKeyAuthenticationFilter]
+    end
+
+    subgraph App[Application]
+        Controller[Controllers<br/>validation, role checks, DTO mapping]
+        Service[Services<br/>business rules, transactions,<br/>audit + version snapshotting]
+        Repository[Repositories<br/>Spring Data JPA]
+    end
+
+    DB[(PostgreSQL<br/>Flyway-managed schema)]
+
+    Dashboard -->|Authorization: Bearer| JwtFilter
+    SDK -->|X-Api-Key| ApiKeyFilter
+    JwtFilter --> Controller
+    ApiKeyFilter --> Controller
+    Controller --> Service
+    Service --> Repository
+    Repository --> DB
+```
 
 ## Tech Stack
 
@@ -259,6 +291,40 @@ curl -X POST localhost:8080/api/auth/login \
 # → returns a JWT; use it as `Authorization: Bearer <token>` on everything else
 ```
 
+## Running with Docker
+
+The included `Dockerfile` (multi-stage: Maven build → JRE runtime) and `docker-compose.yml` run the app and Postgres together, with a separate `application-docker.properties` profile that reads everything from environment variables instead of the hardcoded local values in `application.properties`.
+
+### 1. Configure secrets
+```bash
+cp .env.example .env
+```
+Edit `.env` with real values:
+```
+DB_NAME=feature_flag_engine
+DB_USERNAME=postgres
+DB_PASSWORD=<pick a real password>
+JWT_SECRET=<output of: openssl rand -base64 32>
+JWT_EXPIRATION_MINUTES=60
+```
+`docker-compose.yml` deliberately has no fallback default for `DB_PASSWORD`/`JWT_SECRET` — it refuses to start without a real `.env`, rather than silently running with an insecure value.
+
+### 2. Build and run
+```bash
+docker compose up --build
+```
+This starts Postgres (`db`) and the app (`app`), waits for Postgres's healthcheck before starting the app, and runs Flyway migrations automatically against the containerized database — same migrations, same order, as local dev. The API is available at `http://localhost:8080`.
+
+### 3. Rebuilding after code changes
+```bash
+docker compose down
+docker compose build --no-cache
+docker compose up
+```
+`--no-cache` matters after dependency or Java version changes — Docker's layer caching can otherwise serve a stale build.
+
+> **Windows/Git Bash note**: if `.env` was ever edited in a Windows-native editor, it can pick up CRLF line endings, which silently corrupts values like `JWT_SECRET` (a trailing `\r` isn't valid Base64). If you hit a decoding error, run `cat -A .env` — a `^M` before the end of any line means `sed -i 's/\r$//' .env` will fix it.
+
 ## Testing
 
 ```bash
@@ -269,7 +335,7 @@ Two layers of automated coverage:
 - **Unit tests** — the rule evaluator and rollout-bucketing logic are pure functions with real edge cases (empty rule trees, missing context attributes, `NOT` groups with zero children, boundary percentages), so they're covered directly without a Spring context.
 - **`@SpringBootTest` / MockMvc integration tests** — exercise controllers end-to-end against a real (test) database, covering auth, role enforcement, and the CRUD + evaluation flows.
 
-A Postman collection is also maintained for manual end-to-end verification (e.g. the Module 12 flow: create a segment → add a member → build a `CONDITION` rule with `attribute: "segment"` → confirm a member evaluates differently from a non-member).
+A Postman collection (`postman/feature-flag-engine.postman_collection.json`) is also maintained for manual end-to-end verification. It's chained end-to-end via test scripts — running it top to bottom registers a user, logs in, creates an organization/project/environment/flag/rule/segment, and evaluates the flag, capturing each response's ID into a collection variable for the next request. This covers flows like Module 12's: create a segment → add a member → build a `CONDITION` rule with `attribute: "segment"` → confirm a member evaluates differently from a non-member.
 
 ## Project Structure
 
