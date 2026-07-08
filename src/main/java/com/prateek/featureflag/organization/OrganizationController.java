@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -74,6 +75,19 @@ public class OrganizationController {
         Organization organization = organizationService.createWithOwner(
                 request.name(), request.slug(), principal.getUser());
         return ResponseEntity.status(HttpStatus.CREATED).body(OrganizationResponse.from(organization));
+    }
+
+    @GetMapping
+    public ResponseEntity<List<OrganizationResponse>> getOrganizations(
+            @AuthenticationPrincipal CustomUserDetails principal) {
+
+        List<OrganizationResponse> organizations = organizationService
+                .getOrganizationsForUser(principal.getUser())
+                .stream()
+                .map(OrganizationResponse::from)
+                .toList();
+
+        return ResponseEntity.ok(organizations);
     }
 
     @GetMapping("/{organizationId}")

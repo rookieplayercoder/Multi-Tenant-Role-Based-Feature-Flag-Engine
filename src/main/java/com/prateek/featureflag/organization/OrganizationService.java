@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -82,6 +83,14 @@ public class OrganizationService {
     public Organization getActiveBySlug(String slug) {
         return organizationRepository.findBySlugAndDeletedAtIsNull(slug)
                 .orElseThrow(() -> new EntityNotFoundException("Organization not found for slug: " + slug));
+    }
+
+    public List<Organization> getOrganizationsForUser(User user) {
+        return memberRepository.findByUserId(user.getId())
+                .stream()
+                .map(Member::getOrganization)
+                .filter(organization -> !organization.isDeleted())
+                .toList();
     }
 
     @Transactional
