@@ -27,11 +27,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 /**
  * Unit tests for {@link RuleEvaluator}'s segment-membership CONDITION path
@@ -197,7 +193,7 @@ class RuleEvaluatorSegmentMembershipTest {
 
             when(segmentUserRepository.findById(new SegmentUserId(firstSegmentId, "user-1")))
                     .thenReturn(Optional.of(mock(SegmentUser.class)));
-            when(segmentUserRepository.findById(new SegmentUserId(secondSegmentId, "user-1")))
+            lenient().when(segmentUserRepository.findById(new SegmentUserId(secondSegmentId, "user-1")))
                     .thenReturn(Optional.empty());
 
             boolean result = ruleEvaluator.evaluate(rule, context);
