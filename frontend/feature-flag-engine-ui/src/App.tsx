@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import ProtectedRoute from '@/routes/ProtectedRoute';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import LoginPage from '@/pages/auth/LoginPage';
+import RegisterPage from '@/pages/auth/RegisterPage';
 import DashboardPage from '@/pages/dashboard/DashboardPage';
 import OrganizationsListPage from '@/pages/organizations/OrganizationsListPage';
 import OrganizationFormPage from '@/pages/organizations/OrganizationFormPage';
@@ -13,11 +14,15 @@ import FeatureFlagsListPage from '@/pages/flags/FeatureFlagsListPage';
 import FeatureFlagFormPage from '@/pages/flags/FeatureFlagFormPage';
 import SegmentsListPage from '@/pages/segments/SegmentsListPage';
 import SegmentFormPage from '@/pages/segments/SegmentFormPage';
+import ApiKeysListPage from '@/pages/apiKeys/ApiKeysListPage';
+import ApiKeyCreatePage from '@/pages/apiKeys/ApiKeyCreatePage';
+import AuditLogsListPage from '@/pages/auditLogs/AuditLogsListPage';
 
 export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/register" element={<RegisterPage />} />
 
       <Route element={<ProtectedRoute />}>
         <Route element={<DashboardLayout />}>
@@ -43,10 +48,10 @@ export default function App() {
           <Route path="/segments/new" element={<SegmentFormPage />} />
           <Route path="/segments/:id/edit" element={<SegmentFormPage />} />
 
-          {/*
-            API Keys and Audit Logs routes will be added here
-            one by one in upcoming steps.
-          */}
+          <Route path="/api-keys" element={<ApiKeysListPage />} />
+          <Route path="/api-keys/new" element={<ApiKeyCreatePage />} />
+
+          <Route path="/audit-logs" element={<AuditLogsListPage />} />
         </Route>
       </Route>
 

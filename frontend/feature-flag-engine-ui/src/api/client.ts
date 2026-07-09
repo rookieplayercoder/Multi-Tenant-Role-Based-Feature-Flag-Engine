@@ -21,6 +21,19 @@ apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   return config;
 });
 
+// Error shape thrown by the response interceptor below. Callers that need to
+// branch on the HTTP status (e.g. 409 vs 400 on registration) can check
+// `error instanceof ApiError` and read `error.status`.
+export class ApiError extends Error {
+  status?: number;
+
+  constructor(message: string, status?: number) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+  }
+}
+
 // Normalize error messages and handle expired/invalid sessions globally.
 apiClient.interceptors.response.use(
   (response) => response,
@@ -38,7 +51,7 @@ apiClient.interceptors.response.use(
       error.message ||
       'Something went wrong. Please try again.';
 
-    return Promise.reject(new Error(message));
+    return Promise.reject(new ApiError(message, error.response?.status));
   }
 );
 

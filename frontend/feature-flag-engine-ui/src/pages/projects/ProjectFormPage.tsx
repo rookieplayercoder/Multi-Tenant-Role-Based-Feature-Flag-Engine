@@ -68,7 +68,7 @@ export default function ProjectFormPage() {
       if (isEditMode && id) {
         await updateProject(id, payload);
       } else {
-        await createProject(payload);
+        await createProject(organizationId, payload);
       }
       navigate('/projects');
     } catch (err) {

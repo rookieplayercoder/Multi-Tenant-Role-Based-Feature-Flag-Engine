@@ -22,22 +22,30 @@ export default function ProjectsListPage() {
   const [pendingDelete, setPendingDelete] = useState<Project | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  async function loadData() {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const [projectsData, orgsData] = await Promise.all([
-        getProjects(),
-        getOrganizations(),
-      ]);
-      setProjects(projectsData);
-      setOrganizations(orgsData);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load projects.');
-    } finally {
-      setIsLoading(false);
-    }
-  }
+ async function loadData() {
+   setIsLoading(true);
+   setError(null);
+
+   try {
+     const orgsData = await getOrganizations();
+     setOrganizations(orgsData);
+
+     let allProjects: Project[] = [];
+
+     for (const organization of orgsData) {
+       const projects = await getProjects(organization.id);
+       allProjects = [...allProjects, ...projects];
+     }
+
+     setProjects(allProjects);
+   } catch (err) {
+     setError(
+       err instanceof Error ? err.message : "Failed to load projects."
+     );
+   } finally {
+     setIsLoading(false);
+   }
+ }
 
   useEffect(() => {
     loadData();

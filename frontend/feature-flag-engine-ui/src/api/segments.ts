@@ -8,10 +8,12 @@ import { Segment, SegmentInput } from '@/types/segment';
  * If your API stores rules as a separate sub-resource instead of inline,
  * update this file — the UI just reads/writes `segment.rules`.
  */
-export async function getSegments(projectId?: string): Promise<Segment[]> {
-  const { data } = await apiClient.get<Segment[]>('/segments', {
-    params: projectId ? { projectId } : undefined,
-  });
+export async function getSegments(
+  organizationId: string
+): Promise<Segment[]> {
+  const { data } = await apiClient.get<Segment[]>(
+    `/organizations/${organizationId}/segments`
+  );
   return data;
 }
 
@@ -20,8 +22,14 @@ export async function getSegment(id: string): Promise<Segment> {
   return data;
 }
 
-export async function createSegment(payload: SegmentInput): Promise<Segment> {
-  const { data } = await apiClient.post<Segment>('/segments', payload);
+export async function createSegment(
+  organizationId: string,
+  payload: SegmentInput
+): Promise<Segment> {
+  const { data } = await apiClient.post<Segment>(
+    `/organizations/${organizationId}/segments`,
+    payload
+  );
   return data;
 }
 

@@ -5,6 +5,7 @@ import { Environment } from '@/types/environment';
 import { Project } from '@/types/project';
 import { deleteEnvironment, getEnvironments } from '@/api/environments';
 import { getProjects } from '@/api/projects';
+import { getOrganizations } from '@/api/organizations';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Spinner from '@/components/ui/Spinner';
@@ -25,15 +26,33 @@ export default function EnvironmentsListPage() {
   async function loadData() {
     setIsLoading(true);
     setError(null);
+
     try {
-      const [environmentsData, projectsData] = await Promise.all([
-        getEnvironments(),
-        getProjects(),
-      ]);
-      setEnvironments(environmentsData);
-      setProjects(projectsData);
+      const organizations = await getOrganizations();
+
+      const allProjects: Project[] = [];
+
+      for (const organization of organizations) {
+        const projects = await getProjects(organization.id);
+        allProjects.push(...projects);
+      }
+
+      const allEnvironments: Environment[] = [];
+
+      for (const project of allProjects) {
+        const environments = await getEnvironments(project.id);
+        allEnvironments.push(...environments);
+      }
+
+      setProjects(allProjects);
+      setEnvironments(allEnvironments);
+
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load environments.');
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Failed to load environments."
+      );
     } finally {
       setIsLoading(false);
     }

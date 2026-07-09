@@ -1,17 +1,12 @@
-import apiClient from './client';
-import { Project, ProjectInput } from '@/types/project';
+import apiClient from "./client";
+import { Project, ProjectInput } from "@/types/project";
 
-/**
- * Assumes a flat /projects resource where each project carries an
- * organizationId, and standard REST conventions:
- * GET/POST /projects, GET/PUT/DELETE /projects/{id}.
- * If your API instead nests projects under an organization
- * (e.g. /organizations/{orgId}/projects), update the paths below.
- */
-export async function getProjects(organizationId?: string): Promise<Project[]> {
-  const { data } = await apiClient.get<Project[]>('/projects', {
-    params: organizationId ? { organizationId } : undefined,
-  });
+export async function getProjects(
+  organizationId: string
+): Promise<Project[]> {
+  const { data } = await apiClient.get<Project[]>(
+    `/organizations/${organizationId}/projects`
+  );
   return data;
 }
 
@@ -20,8 +15,14 @@ export async function getProject(id: string): Promise<Project> {
   return data;
 }
 
-export async function createProject(payload: ProjectInput): Promise<Project> {
-  const { data } = await apiClient.post<Project>('/projects', payload);
+export async function createProject(
+  organizationId: string,
+  payload: ProjectInput
+): Promise<Project> {
+  const { data } = await apiClient.post<Project>(
+    `/organizations/${organizationId}/projects`,
+    payload
+  );
   return data;
 }
 
@@ -29,7 +30,10 @@ export async function updateProject(
   id: string,
   payload: ProjectInput
 ): Promise<Project> {
-  const { data } = await apiClient.put<Project>(`/projects/${id}`, payload);
+  const { data } = await apiClient.put<Project>(
+    `/projects/${id}`,
+    payload
+  );
   return data;
 }
 

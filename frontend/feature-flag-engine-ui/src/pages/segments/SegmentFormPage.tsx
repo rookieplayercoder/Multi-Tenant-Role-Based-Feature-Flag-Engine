@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import { getOrganizations } from '@/api/organizations';
 import { ArrowLeft, Plus, Trash2 } from 'lucide-react';
 import { createSegment, getSegment, updateSegment } from '@/api/segments';
 import { getProjects } from '@/api/projects';
@@ -34,6 +35,7 @@ export default function SegmentFormPage() {
   const [key, setKey] = useState('');
   const [description, setDescription] = useState('');
   const [projectId, setProjectId] = useState('');
+  const [organizationId, setOrganizationId] = useState('');
   const [rules, setRules] = useState<SegmentRule[]>([emptyRule()]);
 
   const [projects, setProjects] = useState<Project[]>([]);
@@ -47,8 +49,16 @@ export default function SegmentFormPage() {
       setIsLoading(true);
       setLoadError(null);
       try {
+        const organizations = await getOrganizations();
+        setOrganizationId(organizations[0].id);
+
+        if (organizations.length === 0) {
+          setProjects([]);
+          return;
+        }
+
         const [projectsData, segment] = await Promise.all([
-          getProjects(),
+          getProjects(organizations[0].id),
           id ? getSegment(id) : Promise.resolve(null),
         ]);
         setProjects(projectsData);
@@ -58,7 +68,11 @@ export default function SegmentFormPage() {
           setKey(segment.key || '');
           setDescription(segment.description || '');
           setProjectId(segment.projectId);
-          setRules(segment.rules.length > 0 ? segment.rules : [emptyRule()]);
+          setRules(
+            segment.rules && segment.rules.length > 0
+              ? segment.rules
+              : [emptyRule()]
+          );
         } else if (projectsData.length > 0) {
           setProjectId(projectsData[0].id);
         }
@@ -106,7 +120,7 @@ export default function SegmentFormPage() {
       if (isEditMode && id) {
         await updateSegment(id, payload);
       } else {
-        await createSegment(payload);
+        await createSegment(organizationId, payload);
       }
       navigate('/segments');
     } catch (err) {

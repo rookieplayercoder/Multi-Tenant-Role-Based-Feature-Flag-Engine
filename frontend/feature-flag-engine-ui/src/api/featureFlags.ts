@@ -20,10 +20,12 @@ import {
  * matches your backend exactly — adjust freely, the rest of this file and
  * the UI don't depend on its specifics.
  */
-export async function getFeatureFlags(projectId?: string): Promise<FeatureFlag[]> {
-  const { data } = await apiClient.get<FeatureFlag[]>('/flags', {
-    params: projectId ? { projectId } : undefined,
-  });
+export async function getFeatureFlags(
+  environmentId: string
+): Promise<FeatureFlag[]> {
+  const { data } = await apiClient.get<FeatureFlag[]>(
+    `/environments/${environmentId}/flags`
+  );
   return data;
 }
 
@@ -33,9 +35,13 @@ export async function getFeatureFlag(id: string): Promise<FeatureFlag> {
 }
 
 export async function createFeatureFlag(
+  environmentId: string,
   payload: FeatureFlagInput
 ): Promise<FeatureFlag> {
-  const { data } = await apiClient.post<FeatureFlag>('/flags', payload);
+  const { data } = await apiClient.post<FeatureFlag>(
+    `/environments/${environmentId}/flags`,
+    payload
+  );
   return data;
 }
 

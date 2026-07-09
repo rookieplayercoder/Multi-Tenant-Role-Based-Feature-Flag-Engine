@@ -1,5 +1,5 @@
 import apiClient from './client';
-import { LoginRequest, LoginResponse } from '@/types/auth';
+import { LoginRequest, LoginResponse, RegisterRequest } from '@/types/auth';
 
 /**
  * NOTE: We weren't told the exact shape of your Spring Boot login response,
@@ -17,6 +17,29 @@ export async function login(payload: LoginRequest): Promise<LoginResponse> {
 
   if (!token) {
     throw new Error('Login succeeded but no token was returned by the API.');
+  }
+
+  return {
+    token,
+    refreshToken: data.refreshToken as string | undefined,
+    user: data.user as LoginResponse['user'],
+  };
+}
+
+/**
+ * Registration returns the same response shape as login (JWT + user), so we
+ * parse it identically to login() above.
+ */
+export async function register(payload: RegisterRequest): Promise<LoginResponse> {
+  const { data } = await apiClient.post<Record<string, unknown>>(
+    '/auth/register',
+    payload
+  );
+
+  const token = (data.token || data.accessToken) as string | undefined;
+
+  if (!token) {
+    throw new Error('Registration succeeded but no token was returned by the API.');
   }
 
   return {

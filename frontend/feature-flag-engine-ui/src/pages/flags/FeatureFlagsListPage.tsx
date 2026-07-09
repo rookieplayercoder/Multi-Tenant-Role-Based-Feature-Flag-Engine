@@ -1,4 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Environment } from "@/types/environment";
+import { getOrganizations } from "@/api/organizations";
+import { getEnvironments } from "@/api/environments";
 import { Link } from 'react-router-dom';
 import { Flag, Pencil, Plus, Trash2 } from 'lucide-react';
 import { FeatureFlag } from '@/types/featureFlag';
@@ -26,15 +29,40 @@ export default function FeatureFlagsListPage() {
   async function loadData() {
     setIsLoading(true);
     setError(null);
+
     try {
-      const [flagsData, projectsData] = await Promise.all([
-        getFeatureFlags(),
-        getProjects(),
-      ]);
-      setFlags(flagsData);
-      setProjects(projectsData);
+      const organizations = await getOrganizations();
+
+      let allProjects: Project[] = [];
+
+      for (const organization of organizations) {
+        const projects = await getProjects(organization.id);
+        allProjects.push(...projects);
+      }
+
+      let allEnvironments: Environment[] = [];
+
+      for (const project of allProjects) {
+        const environments = await getEnvironments(project.id);
+        allEnvironments.push(...environments);
+      }
+
+      let allFlags: FeatureFlag[] = [];
+
+      for (const environment of allEnvironments) {
+        const flags = await getFeatureFlags(environment.id);
+        allFlags.push(...flags);
+      }
+
+      setProjects(allProjects);
+      setFlags(allFlags);
+
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load feature flags.');
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Failed to load feature flags."
+      );
     } finally {
       setIsLoading(false);
     }

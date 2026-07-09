@@ -14,7 +14,8 @@ React + TypeScript + Vite + Tailwind + React Router + Axios frontend for the Fea
 - ✅ Environments CRUD (list with project filter, create, edit, delete)
 - ✅ Feature Flags CRUD (list with project filter, create, edit, delete, plus per-environment on/off toggles)
 - ✅ Segments CRUD (list with project filter, create, edit, delete, with a dynamic targeting-rule builder)
-- ⏳ Not built yet: API Keys, Audit Logs (CRUD screens + API wiring) — coming one by one
+- ✅ API Keys (list with environment filter and revoke, create with a reveal-once secret view)
+- ⏳ Not built yet: Audit Logs (CRUD screens + API wiring) — coming next
 
 ## Setup
 
@@ -78,6 +79,16 @@ This last piece is a reasonable guess at how a Spring Boot feature-flag API woul
 `src/api/segments.ts` assumes a flat `/segments` resource with a `projectId` field and an **inline `rules` array** on the segment itself (`{ attribute, operator, value }[]`), sent/received as part of the same `POST`/`PUT` payload as the segment's name/description. The operator set in `src/types/segment.ts` (`equals`, `not_equals`, `contains`, `in`, `greater_than`, `less_than`) is a common baseline — narrow or extend it to match what your rule engine actually supports.
 
 If your API manages rules as a separate sub-resource (e.g. `/segments/{id}/rules`), update `src/api/segments.ts` — the list and form pages don't need to change.
+
+## ⚠️ Assumption you should verify: API Keys endpoints
+
+`src/api/apiKeys.ts` assumes a flat `/api-keys` resource scoped to an `environmentId`, with keys treated as create-once / rename-or-revoke afterwards (the secret itself is never re-fetchable, matching how most API key systems work):
+- `GET /api-keys?environmentId=...` → masked keys, no secret
+- `POST /api-keys` → returns the full secret **once**, in the same response
+- `PUT /api-keys/{id}` → rename only, `{ name }`
+- `DELETE /api-keys/{id}` → revoke
+
+Key `type` (`server` vs `client`) is a common convention (full-access vs safe-for-browser) — drop it from `src/types/apiKey.ts` if your engine doesn't distinguish key types. If your backend returns the secret via a separate endpoint or doesn't mask keys in the list response, adjust `src/api/apiKeys.ts` accordingly.
 
 ## Folder structure
 

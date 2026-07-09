@@ -7,6 +7,7 @@ import {
   updateEnvironment,
 } from '@/api/environments';
 import { getProjects } from '@/api/projects';
+import { getOrganizations } from '@/api/organizations';
 import { Project } from '@/types/project';
 import Card from '@/components/ui/Card';
 import Input from '@/components/ui/Input';
@@ -36,11 +37,18 @@ export default function EnvironmentFormPage() {
       setIsLoading(true);
       setLoadError(null);
       try {
-        const [projectsData, environment] = await Promise.all([
-          getProjects(),
-          id ? getEnvironment(id) : Promise.resolve(null),
-        ]);
-        setProjects(projectsData);
+            const organizations = await getOrganizations();
+
+            if (organizations.length === 0) {
+              setProjects([]);
+              return;
+            }
+
+            const projectsData = await getProjects(organizations[0].id);
+
+            setProjects(projectsData);
+
+            const environment = id ? await getEnvironment(id) : null;
 
         if (environment) {
           setName(environment.name);
@@ -74,7 +82,7 @@ export default function EnvironmentFormPage() {
       if (isEditMode && id) {
         await updateEnvironment(id, payload);
       } else {
-        await createEnvironment(payload);
+        await createEnvironment(projectId,payload);
       }
       navigate('/environments');
     } catch (err) {

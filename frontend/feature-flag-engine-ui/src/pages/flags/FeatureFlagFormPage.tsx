@@ -1,4 +1,6 @@
 import { FormEvent, useEffect, useState } from 'react';
+import { Environment } from '@/types/environment';
+import { getOrganizations } from '@/api/organizations';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import {
@@ -39,6 +41,8 @@ export default function FeatureFlagFormPage() {
   const [description, setDescription] = useState('');
   const [type, setType] = useState<FlagType>('boolean');
   const [projectId, setProjectId] = useState('');
+  const [environmentId, setEnvironmentId] = useState('');
+  const [environments, setEnvironments] = useState<Environment[]>([]);
 
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -55,11 +59,29 @@ export default function FeatureFlagFormPage() {
       setIsLoading(true);
       setLoadError(null);
       try {
-        const [projectsData, flag] = await Promise.all([
-          getProjects(),
-          id ? getFeatureFlag(id) : Promise.resolve(null),
-        ]);
-        setProjects(projectsData);
+       const organizations = await getOrganizations();
+
+       if (organizations.length === 0) {
+           setProjects([]);
+           return;
+       }
+
+
+
+      const [projectsData, flag] = await Promise.all([
+        getProjects(organizations[0].id),
+        id ? getFeatureFlag(id) : Promise.resolve(null),
+      ]);
+
+      setProjects(projectsData);
+        if (projectsData.length > 0) {
+            const envs = await getEnvironments(projectsData[0].id);
+            setEnvironments(envs);
+
+            if (envs.length > 0) {
+                setEnvironmentId(envs[0].id);
+            }
+        }
 
         if (flag) {
           setKey(flag.key);
@@ -79,6 +101,19 @@ export default function FeatureFlagFormPage() {
       }
     })();
   }, [id]);
+
+useEffect(() => {
+  if (!projectId) return;
+
+  (async () => {
+    const envs = await getEnvironments(projectId);
+    setEnvironments(envs);
+
+    if (envs.length > 0) {
+      setEnvironmentId(envs[0].id);
+    }
+  })();
+}, [projectId]);
 
   // Load per-environment toggle states once we're editing an existing flag.
   useEffect(() => {
@@ -145,11 +180,11 @@ export default function FeatureFlagFormPage() {
     setSubmitError(null);
     setIsSubmitting(true);
     try {
-      const payload = { key, name, description: description || undefined, type, projectId };
+      const payload = { key, name, description: description || undefined, type };
       if (isEditMode && id) {
         await updateFeatureFlag(id, payload);
       } else {
-        await createFeatureFlag(payload);
+        await createFeatureFlag(environmentId, payload);
       }
       navigate('/flags');
     } catch (err) {
@@ -192,19 +227,35 @@ export default function FeatureFlagFormPage() {
                 .
               </div>
             ) : (
-              <Select
-                label="Project"
-                name="projectId"
-                required
-                value={projectId}
-                onChange={(e) => setProjectId(e.target.value)}
-              >
-                {projects.map((project) => (
-                  <option key={project.id} value={project.id}>
-                    {project.name}
-                  </option>
-                ))}
-              </Select>
+              <>
+                <Select
+                  label="Project"
+                  name="projectId"
+                  required
+                  value={projectId}
+                  onChange={(e) => setProjectId(e.target.value)}
+                >
+                  {projects.map((project) => (
+                    <option key={project.id} value={project.id}>
+                      {project.name}
+                    </option>
+                  ))}
+                </Select>
+
+                <Select
+                  label="Environment"
+                  name="environmentId"
+                  required
+                  value={environmentId}
+                  onChange={(e) => setEnvironmentId(e.target.value)}
+                >
+                  {environments.map((env) => (
+                    <option key={env.id} value={env.id}>
+                      {env.name}
+                    </option>
+                  ))}
+                </Select>
+              </>
             )}
 
             <Input

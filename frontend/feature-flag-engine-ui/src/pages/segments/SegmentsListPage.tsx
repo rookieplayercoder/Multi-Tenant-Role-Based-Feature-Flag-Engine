@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { getOrganizations } from "@/api/organizations";
 import { Link } from 'react-router-dom';
 import { Users, Pencil, Plus, Trash2 } from 'lucide-react';
 import { Segment } from '@/types/segment';
@@ -23,22 +24,40 @@ export default function SegmentsListPage() {
   const [pendingDelete, setPendingDelete] = useState<Segment | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  async function loadData() {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const [segmentsData, projectsData] = await Promise.all([
-        getSegments(),
-        getProjects(),
-      ]);
-      setSegments(segmentsData);
-      setProjects(projectsData);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load segments.');
-    } finally {
-      setIsLoading(false);
-    }
-  }
+ async function loadData() {
+   setIsLoading(true);
+   setError(null);
+
+   try {
+     const organizations = await getOrganizations();
+
+     let allProjects: Project[] = [];
+
+     for (const organization of organizations) {
+       const projects = await getProjects(organization.id);
+       allProjects.push(...projects);
+     }
+
+     let allSegments: Segment[] = [];
+
+     for (const organization of organizations) {
+       const segments = await getSegments(organization.id);
+       allSegments.push(...segments);
+     }
+
+     setProjects(allProjects);
+     setSegments(allSegments);
+
+   } catch (err) {
+     setError(
+       err instanceof Error
+         ? err.message
+         : "Failed to load segments."
+     );
+   } finally {
+     setIsLoading(false);
+   }
+ }
 
   useEffect(() => {
     loadData();
@@ -68,6 +87,9 @@ export default function SegmentsListPage() {
       setIsDeleting(false);
     }
   }
+
+const getRuleCount = (segment: Segment) => segment.rules?.length ?? 0;
+
 
   return (
     <div className="flex flex-col gap-6">
@@ -149,8 +171,8 @@ export default function SegmentsListPage() {
                   </td>
                   <td className="px-4 py-3">
                     <Badge tone="neutral">
-                      {segment.rules.length}{' '}
-                      {segment.rules.length === 1 ? 'rule' : 'rules'}
+                      {getRuleCount(segment)}{" "}
+                      {getRuleCount(segment) === 1 ? "rule" : "rules"}
                     </Badge>
                   </td>
                   <td className="hidden px-4 py-3 text-surface-500 sm:table-cell">

@@ -6,7 +6,7 @@ import {
   useState,
   ReactNode,
 } from 'react';
-import { login as loginRequest } from '@/api/auth';
+import { login as loginRequest, register as registerRequest } from '@/api/auth';
 import { TOKEN_STORAGE_KEY } from '@/api/client';
 import { AuthUser } from '@/types/auth';
 
@@ -15,6 +15,7 @@ interface AuthContextValue {
   isInitializing: boolean;
   user: AuthUser | null;
   login: (email: string, password: string) => Promise<void>;
+  register: (fullName: string, email: string, password: string) => Promise<void>;
   logout: () => void;
 }
 
@@ -42,6 +43,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(response.user ?? null);
   }, []);
 
+  const register = useCallback(
+    async (fullName: string, email: string, password: string) => {
+      const response = await registerRequest({ fullName, email, password });
+      localStorage.setItem(TOKEN_STORAGE_KEY, response.token);
+      setToken(response.token);
+      setUser(response.user ?? null);
+    },
+    []
+  );
+
   const logout = useCallback(() => {
     localStorage.removeItem(TOKEN_STORAGE_KEY);
     setToken(null);
@@ -54,9 +65,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isInitializing,
       user,
       login,
+      register,
       logout,
     }),
-    [token, isInitializing, user, login, logout]
+    [token, isInitializing, user, login, register, logout]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

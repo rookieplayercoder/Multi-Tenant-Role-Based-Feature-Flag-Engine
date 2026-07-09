@@ -1,17 +1,12 @@
-import apiClient from './client';
-import { Environment, EnvironmentInput } from '@/types/environment';
+import apiClient from "./client";
+import { Environment, EnvironmentInput } from "@/types/environment";
 
-/**
- * Assumes a flat /environments resource where each environment carries a
- * projectId, and standard REST conventions:
- * GET/POST /environments, GET/PUT/DELETE /environments/{id}.
- * If your API instead nests environments under a project
- * (e.g. /projects/{projectId}/environments), update the paths below.
- */
-export async function getEnvironments(projectId?: string): Promise<Environment[]> {
-  const { data } = await apiClient.get<Environment[]>('/environments', {
-    params: projectId ? { projectId } : undefined,
-  });
+export async function getEnvironments(
+  projectId: string
+): Promise<Environment[]> {
+  const { data } = await apiClient.get<Environment[]>(
+    `/projects/${projectId}/environments`
+  );
   return data;
 }
 
@@ -21,9 +16,13 @@ export async function getEnvironment(id: string): Promise<Environment> {
 }
 
 export async function createEnvironment(
+  projectId: string,
   payload: EnvironmentInput
 ): Promise<Environment> {
-  const { data } = await apiClient.post<Environment>('/environments', payload);
+  const { data } = await apiClient.post<Environment>(
+    `/projects/${projectId}/environments`,
+    payload
+  );
   return data;
 }
 
