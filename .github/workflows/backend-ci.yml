@@ -46,9 +46,9 @@ jobs:
         run: chmod +x mvnw
         if: runner.os != 'Windows'
 
-      - - name: Run Tests
-      - run: mvn clean test
-      - env:
-      - SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/feature_flag_engine_test
-      - SPRING_DATASOURCE_USERNAME: postgres
-      - SPRING_DATASOURCE_PASSWORD: postgres
+      - name: Run Tests
+        run: mvn clean test
+        env:
+          SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/feature_flag_engine_test
+          SPRING_DATASOURCE_USERNAME: postgres
+          SPRING_DATASOURCE_PASSWORD: postgres
