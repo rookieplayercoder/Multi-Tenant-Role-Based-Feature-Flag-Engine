@@ -1,13 +1,6 @@
 import apiClient from './client';
-import { Segment, SegmentInput } from '@/types/segment';
+import { Segment, SegmentInput, SegmentMember } from '@/types/segment';
 
-/**
- * Assumes a flat /segments resource where each segment carries a projectId
- * and an inline `rules` array, using standard REST conventions:
- * GET/POST /segments, GET/PUT/DELETE /segments/{id}.
- * If your API stores rules as a separate sub-resource instead of inline,
- * update this file — the UI just reads/writes `segment.rules`.
- */
 export async function getSegments(
   organizationId: string
 ): Promise<Segment[]> {
@@ -43,4 +36,33 @@ export async function updateSegment(
 
 export async function deleteSegment(id: string): Promise<void> {
   await apiClient.delete(`/segments/${id}`);
+}
+
+export async function getSegmentMembers(
+  segmentId: string
+): Promise<SegmentMember[]> {
+  const { data } = await apiClient.get<SegmentMember[]>(
+    `/segments/${segmentId}/members`
+  );
+  return data;
+}
+
+export async function addSegmentMember(
+  segmentId: string,
+  userIdentifier: string
+): Promise<SegmentMember> {
+  const { data } = await apiClient.post<SegmentMember>(
+    `/segments/${segmentId}/members`,
+    { userIdentifier }
+  );
+  return data;
+}
+
+export async function removeSegmentMember(
+  segmentId: string,
+  userIdentifier: string
+): Promise<void> {
+  await apiClient.delete(`/segments/${segmentId}/members`, {
+    params: { userIdentifier },
+  });
 }

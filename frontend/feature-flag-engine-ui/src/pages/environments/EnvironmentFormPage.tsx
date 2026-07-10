@@ -9,6 +9,7 @@ import {
 import { getProjects } from '@/api/projects';
 import { getOrganizations } from '@/api/organizations';
 import { Project } from '@/types/project';
+import { EnvironmentKey } from '@/types/environment';
 import Card from '@/components/ui/Card';
 import Input from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
@@ -16,13 +17,20 @@ import Button from '@/components/ui/Button';
 import Spinner from '@/components/ui/Spinner';
 import ErrorMessage from '@/components/ui/ErrorMessage';
 
+const ENVIRONMENT_KEYS: { value: EnvironmentKey; label: string }[] = [
+  { value: 'DEV', label: 'DEV' },
+  { value: 'TEST', label: 'TEST' },
+  { value: 'STAGING', label: 'STAGING' },
+  { value: 'PROD', label: 'PROD' },
+];
+
 export default function EnvironmentFormPage() {
   const { id } = useParams<{ id: string }>();
   const isEditMode = Boolean(id);
   const navigate = useNavigate();
 
   const [name, setName] = useState('');
-  const [key, setKey] = useState('');
+  const [key, setKey] = useState<EnvironmentKey>('DEV');
   const [description, setDescription] = useState('');
   const [projectId, setProjectId] = useState('');
 
@@ -37,22 +45,21 @@ export default function EnvironmentFormPage() {
       setIsLoading(true);
       setLoadError(null);
       try {
-            const organizations = await getOrganizations();
+        const organizations = await getOrganizations();
 
-            if (organizations.length === 0) {
-              setProjects([]);
-              return;
-            }
+        if (organizations.length === 0) {
+          setProjects([]);
+          return;
+        }
 
-            const projectsData = await getProjects(organizations[0].id);
+        const projectsData = await getProjects(organizations[0].id);
+        setProjects(projectsData);
 
-            setProjects(projectsData);
-
-            const environment = id ? await getEnvironment(id) : null;
+        const environment = id ? await getEnvironment(id) : null;
 
         if (environment) {
           setName(environment.name);
-          setKey(environment.key || '');
+          setKey(environment.key);
           setDescription(environment.description || '');
           setProjectId(environment.projectId);
         } else if (projectsData.length > 0) {
@@ -73,16 +80,21 @@ export default function EnvironmentFormPage() {
     setSubmitError(null);
     setIsSubmitting(true);
     try {
-      const payload = {
-        name,
-        key: key || undefined,
-        description: description || undefined,
-        projectId,
-      };
       if (isEditMode && id) {
-        await updateEnvironment(id, payload);
+        // Key is immutable once set — the update endpoint only accepts name.
+        await updateEnvironment(id, {
+          name,
+          key,
+          description: description || undefined,
+          projectId,
+        });
       } else {
-        await createEnvironment(projectId,payload);
+        await createEnvironment(projectId, {
+          name,
+          key,
+          description: description || undefined,
+          projectId,
+        });
       }
       navigate('/environments');
     } catch (err) {
@@ -131,6 +143,7 @@ export default function EnvironmentFormPage() {
                 label="Project"
                 name="projectId"
                 required
+                disabled={isEditMode}
                 value={projectId}
                 onChange={(e) => setProjectId(e.target.value)}
               >
@@ -150,13 +163,22 @@ export default function EnvironmentFormPage() {
               onChange={(e) => setName(e.target.value)}
               placeholder="Production"
             />
-            <Input
-              label="Key (optional)"
+
+            <Select
+              label={isEditMode ? 'Key (cannot be changed)' : 'Key'}
               name="key"
+              required
+              disabled={isEditMode}
               value={key}
-              onChange={(e) => setKey(e.target.value)}
-              placeholder="production"
-            />
+              onChange={(e) => setKey(e.target.value as EnvironmentKey)}
+            >
+              {ENVIRONMENT_KEYS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </Select>
+
             <Input
               label="Description (optional)"
               name="description"

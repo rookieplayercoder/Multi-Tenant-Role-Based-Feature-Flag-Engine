@@ -1,370 +1,468 @@
-# Feature Flag Engine
+<div align="center">
 
-A self-hosted, multi-tenant feature-flag and remote-configuration platform — a from-scratch alternative to LaunchDarkly, built to explore the full lifecycle of a real production system: multi-tenant data modeling, role-based authorization, a recursive rule-evaluation engine, SDK authentication, audit trails, config versioning with rollback, and evaluation analytics.
+# 🚩 Multi-Tenant Role-Based Feature Flag Engine
 
-Every organization can have multiple projects, each with multiple environments (dev/test/staging/prod), each hosting its own feature flags. Flags can be simple booleans, percentage rollouts, or fully targeted with a recursive AND/OR/NOT rule tree — including audience segments — and every change is versioned, audited, and (for flags) revertible.
+**A production-ready, self-hosted feature flag management platform — built from the ground up as a LaunchDarkly-style engine with multi-tenancy, role-based access, and environment-scoped flags.**
 
----
+[![Java](https://img.shields.io/badge/Java-21-ED8B00?style=for-the-badge&logo=openjdk&logoColor=white)](https://openjdk.org/)
+[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-6DB33F?style=for-the-badge&logo=springboot&logoColor=white)](https://spring.io/projects/spring-boot)
+[![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)](https://react.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Docker](https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://www.docker.com/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
+[![GitHub Actions](https://img.shields.io/badge/GitHub%20Actions-2088FF?style=for-the-badge&logo=githubactions&logoColor=white)](https://github.com/features/actions)
 
-## Table of Contents
-
-- [Features](#features)
-- [Architecture](#architecture)
-- [Tech Stack](#tech-stack)
-- [Database Schema](#database-schema)
-- [API Endpoints](#api-endpoints)
-- [Authentication & Authorization](#authentication--authorization)
-- [Getting Started](#getting-started)
-- [Running with Docker](#running-with-docker)
-- [Testing](#testing)
-- [Project Structure](#project-structure)
-- [Known Limitations / Roadmap](#known-limitations--roadmap)
+</div>
 
 ---
 
-## Features
+## 📖 About
 
-- ✅ **Authentication** — JWT-based registration/login for dashboard users
-- ✅ **Organizations** — multi-tenant root entity, full CRUD, soft-deletable
-- ✅ **Projects** — scoped to an organization, full CRUD
-- ✅ **Environments** — scoped to a project (`DEV`/`TEST`/`STAGING`/`PROD`), full CRUD
-- ✅ **Feature Flags** — `BOOLEAN`, `PERCENTAGE`, and `TARGETED` evaluation strategies; create, update, enable/disable, change type
-- ✅ **Rule Engine** — recursive `GROUP` (`AND`/`OR`/`NOT`) and `CONDITION` rule trees, with independent attribute-matching and percentage-rollout gates on every condition node
-- ✅ **Segments** — reusable named audience lists, referenceable from any rule via a reserved `segment` attribute
-- ✅ **SDK / API Keys** — per-environment API keys for machine clients, authenticated separately from dashboard JWTs
-- ✅ **Audit Logs** — every create/update/delete/enable/disable/evaluate operation recorded with actor, action, resource type, and timestamp
-- ✅ **Versioning & Rollback** — every flag/rule change snapshots a new `FlagVersion`; flags can be rolled back to any prior version
-- ✅ **Evaluation Metrics** — pre-aggregated, date-bucketed evaluation counters (not one row per evaluation) for dashboard analytics
-- ✅ **Role-Based Access Control** — `OWNER` / `ADMIN` / `EDITOR` / `VIEWER`, enforced per-organization on every endpoint
-- ✅ **Global Exception Handling** — consistent JSON error shape across the API
-- ✅ **Automated Tests** — unit tests (rule evaluator, rollout bucketing) + `@SpringBootTest`/MockMvc integration tests
-- ✅ **Postman Collection** — manual end-to-end verification alongside the automated suite
+This project is a **self-hosted feature flag engine** designed around the same core ideas as commercial platforms like LaunchDarkly or Unleash: organizations, projects, environments, and flags — all gated behind proper authentication, role-based authorization, and full audit traceability.
 
-## Architecture
+It's built as a portfolio-grade demonstration of production backend and full-stack architecture: a Spring Boot + PostgreSQL backend with JWT-based auth and API-key-based SDK access, a React + TypeScript frontend, Flyway-managed schema migrations, and a Dockerized deployment path with CI on every push.
 
-The codebase is organized **by domain, not by layer** — each business concept (`organization`, `project`, `flag`, `rules`, `segment`, `evaluation`, `audit`, `apikey`, `security`, `auth`) owns its entity, repository, service, controller, and DTOs in one package, rather than splitting into top-level `controllers/`, `services/`, `repositories/` folders. Two packages are intentionally cross-cutting: `common` (global exception handling) and `security` (JWT + API-key authentication, shared across every domain).
+> 💡 **Why build this?** Feature flags sit at the intersection of a lot of interesting engineering problems — multi-tenancy, authorization boundaries, concurrent evaluation performance, auditability, and API design. This project is an end-to-end exploration of all of them.
 
-```
-Request
-  │
-  ▼
-Controller  ──▶  validates input (@Valid), resolves the acting user
-  │                (@AuthenticationPrincipal), checks role via
-  │                OrganizationAuthorizationService, maps entities
-  │                to response records
-  ▼
-Service     ──▶  business rules, transaction boundaries, orchestrates
-  │                repositories, triggers audit logging + version
-  │                snapshotting on every mutation
-  ▼
-Repository  ──▶  Spring Data JPA, derived queries only (no native SQL)
-  │
-  ▼
-PostgreSQL  ──▶  schema owned by Flyway migrations, UUID primary keys,
-                  soft deletes via deleted_at, CHECK constraints
-                  enforcing shape invariants (e.g. GROUP rules must
-                  have a logical_operator, CONDITION rules must not)
-```
+---
 
-**Two parallel authentication paths**, both populating the same `SecurityContextHolder` via pre-authentication filters ahead of Spring Security's own username/password filter:
+## ✨ Features
 
-- **Dashboard users** → `Authorization: Bearer <JWT>` → `JwtAuthenticationFilter`
-- **SDK clients** → `X-Api-Key: <key>` → `ApiKeyAuthenticationFilter`, resolving directly to the `Environment` the key belongs to (no human role check — the key itself is the authorization boundary for machine clients)
+| | |
+|---|---|
+| 🔐 **JWT Authentication** | Secure user registration & login with token-based sessions |
+| 🏢 **Multi-Tenant Architecture** | Strict data isolation across organizations |
+| 🧑‍🤝‍🧑 **Role-Based Access Control** | Organization-level membership & roles |
+| 🏗️ **Organizations CRUD** | Create, manage, and administer tenant organizations |
+| 📁 **Projects CRUD** | Group related flags and environments under a project |
+| 🌎 **Environment Management** | Isolated `DEV` / `TEST` / `STAGING` / `PROD` environments per project |
+| 🚩 **Feature Flags CRUD** | Boolean & typed flags, scoped per environment |
+| 🎯 **Targeting Rules & Segments** | Rule-based flag evaluation with user segments |
+| 🔑 **API Key Management** | Environment-scoped keys for SDK/API evaluation access |
+| 📜 **Audit Logs** | Full change history for every mutating action |
+| 📊 **Evaluation Metrics** | Aggregated counters for flag evaluation traffic |
+| 🖥️ **Responsive Dashboard** | Clean, modern React UI with light & dark mode |
+| 🐳 **Docker Support** | One-command local spin-up with Docker Compose |
+| ⚙️ **CI with GitHub Actions** | Automated build & test pipeline on every push |
+| ✅ **Unit & Integration Tests** | JUnit 5 + Testcontainers coverage across the backend |
 
-**The rule engine** (`evaluation` package) walks a `FeatureRule` tree recursively: `GROUP` nodes combine their children with `AND`/`OR`/`NOT`; `CONDITION` nodes require **both** an attribute check and a rollout-percentage check to pass (either can be absent/vacuously true), which is what lets one node express pure attribute targeting, pure percentage rollout, or both combined. Percentage bucketing is a deterministic SHA-256 hash of `flagKey:userIdentifier` — the same user always lands in the same bucket for a given flag.
+---
 
-### Diagram
+## 🏛️ Architecture
+
+The domain model follows a strict tenancy hierarchy — every flag, key, and log entry ultimately traces back to a single organization:
 
 ```mermaid
-flowchart TD
-    subgraph Clients
-        Dashboard[Dashboard User<br/>JWT]
-        SDK[SDK Client<br/>API Key]
-    end
+graph TD
+    A[🏢 Organization] --> B[📁 Project]
+    B --> C[🌎 Environment]
+    C --> D[🚩 Feature Flags]
+    C --> E[🔑 API Keys]
+    C --> F[📜 Audit Logs]
+    D --> G[🎯 Targeting Rules]
+    A --> H[🧑‍🤝‍🧑 Segments]
+    G -.references.-> H
+    D --> I[📊 Evaluation Metrics]
 
-    subgraph Security[Security Filters]
-        JwtFilter[JwtAuthenticationFilter]
-        ApiKeyFilter[ApiKeyAuthenticationFilter]
-    end
-
-    subgraph App[Application]
-        Controller[Controllers<br/>validation, role checks, DTO mapping]
-        Service[Services<br/>business rules, transactions,<br/>audit + version snapshotting]
-        Repository[Repositories<br/>Spring Data JPA]
-    end
-
-    DB[(PostgreSQL<br/>Flyway-managed schema)]
-
-    Dashboard -->|Authorization: Bearer| JwtFilter
-    SDK -->|X-Api-Key| ApiKeyFilter
-    JwtFilter --> Controller
-    ApiKeyFilter --> Controller
-    Controller --> Service
-    Service --> Repository
-    Repository --> DB
+    style A fill:#3466f6,color:#fff
+    style B fill:#5a8bff,color:#fff
+    style C fill:#8ab0ff,color:#12151f
+    style D fill:#ffa41f,color:#12151f
 ```
 
-## Tech Stack
+**Request flow for a typical dashboard action:**
 
-| Layer | Technology |
+```mermaid
+sequenceDiagram
+    participant U as User (Browser)
+    participant F as React Frontend
+    participant A as Spring Boot API
+    participant D as PostgreSQL
+
+    U->>F: Interacts with UI
+    F->>A: REST call + JWT Bearer token
+    A->>A: Validate JWT & authorize role
+    A->>D: Query / mutate via Spring Data JPA
+    D-->>A: Result set
+    A-->>F: JSON response
+    F-->>U: Updated UI
+```
+
+---
+
+## 🧰 Tech Stack
+
+### Backend
+
+| Technology | Purpose |
 |---|---|
-| Language | Java 21 |
-| Framework | Spring Boot 4.1.0 |
-| Web | Spring MVC (REST) |
-| Security | Spring Security 7 (JWT via `jjwt`, custom API-key filter) |
-| Persistence | Spring Data JPA + Hibernate 7 |
-| Database | PostgreSQL |
-| Migrations | Flyway |
-| Build | Maven |
-| Testing | JUnit 5, MockMvc, `@SpringBootTest` |
-| IDs | UUID (v4) primary keys throughout |
+| **Java 21** | Core language |
+| **Spring Boot** | Application framework |
+| **Spring Security** | Authentication & authorization |
+| **Spring Data JPA / Hibernate** | ORM & persistence |
+| **PostgreSQL** | Primary relational database |
+| **Flyway** | Version-controlled schema migrations |
+| **JWT (JSON Web Tokens)** | Stateless user authentication |
+| **Maven** | Build & dependency management |
+| **JUnit 5** | Unit testing |
+| **Testcontainers** | Integration testing against real Postgres |
 
-## Database Schema
+### Frontend
 
-All tables use UUID primary keys and `TIMESTAMPTZ` for timestamps. Soft-deletable entities carry a nullable `deleted_at`; append-only tables (`flag_versions`, `audit_logs`) have no update path at all — only inserts.
-
-| Table | Purpose |
+| Technology | Purpose |
 |---|---|
-| `organizations` | Tenant root. Slug-unique among non-deleted rows. |
-| `users` | Registered accounts. Email-unique among non-deleted rows. |
-| `members` | Join table: user ↔ organization, with a `role` (`OWNER`/`ADMIN`/`EDITOR`/`VIEWER`). No soft delete — removal is final. |
-| `projects` | Scoped to an organization; key unique within the org. |
-| `environments` | Scoped to a project; typed `key` (`DEV`/`TEST`/`STAGING`/`PROD`), unique within the project. |
-| `feature_flags` | Scoped to an environment; `flag_type` (`BOOLEAN`/`PERCENTAGE`/`TARGETED`), `enabled`, monotonic `version` counter. |
-| `feature_rules` | Self-referencing tree (`parent_rule_id`) under a flag. `GROUP` rows carry a `logical_operator`; `CONDITION` rows carry `attribute`/`operator`/`value`/`rollout_percentage`. A CHECK constraint enforces the shape split. Cascade-deletes subtrees. |
-| `segments` | Named audience lists, scoped to an organization. |
-| `segment_users` | Composite-keyed (`segment_id`, `user_identifier`) membership rows — no surrogate ID needed. |
-| `environment_api_keys` | SDK credentials. Only a hash is ever persisted, never the raw key. `revoked_at` is this table's soft-delete. |
-| `flag_versions` | Append-only JSON snapshots of a flag + its full rule tree, one per version number. Powers rollback. |
-| `audit_logs` | Append-only. `action` (`AuditAction` enum) + `entity_type` (`ResourceType` enum) + `entity_id`, always attributed to a non-null `actor`. |
-| `flag_evaluation_metrics` | Pre-aggregated: one row per `(flag, environment, day, result, reason)`, incremented via atomic upsert — bounded size regardless of traffic volume, unlike one-row-per-evaluation logging. |
+| **React** | UI library |
+| **TypeScript** | Static typing across the frontend |
+| **Vite** | Build tool & dev server |
+| **Tailwind CSS** | Utility-first styling, incl. dark mode |
+| **React Router** | Client-side routing |
+| **Axios** | HTTP client |
 
-## API Endpoints
+### DevOps
 
-All endpoints are prefixed `/api`. Auth column: **JWT** = dashboard user (`Authorization: Bearer`), **API Key** = SDK client (`X-Api-Key`), **Public** = no auth.
+| Technology | Purpose |
+|---|---|
+| **Docker** | Containerization |
+| **Docker Compose** | Local multi-service orchestration |
+| **GitHub Actions** | Continuous integration |
 
-### Auth
-| Method | Path | Auth |
-|---|---|---|
-| POST | `/auth/register` | Public |
-| POST | `/auth/login` | Public |
+---
 
-### Organizations & Members
-| Method | Path | Role |
-|---|---|---|
-| POST | `/organizations` | any authenticated user (becomes `OWNER`) |
-| GET | `/organizations/{organizationId}` | any member |
-| PUT | `/organizations/{organizationId}` | `OWNER`/`ADMIN` |
-| DELETE | `/organizations/{organizationId}` | `OWNER`/`ADMIN` |
-| POST | `/organizations/{organizationId}/members` | `OWNER`/`ADMIN` |
-| GET | `/organizations/{organizationId}/audit-logs` | any member |
+## 📂 Project Folder Structure
 
-### Projects
-| Method | Path | Role |
-|---|---|---|
-| POST | `/organizations/{organizationId}/projects` | `OWNER`/`ADMIN` |
-| GET | `/organizations/{organizationId}/projects` | any member |
-| GET | `/projects/{projectId}` | any member |
-| PUT | `/projects/{projectId}` | `OWNER`/`ADMIN` |
-| DELETE | `/projects/{projectId}` | `OWNER`/`ADMIN` |
+```
+feature-flag-engine/
+├── backend/
+│   ├── src/main/java/com/prateek/featureflag/
+│   │   ├── auth/            # Registration, login, JWT issuing
+│   │   ├── user/            # User entity & repository
+│   │   ├── organization/    # Organization CRUD + membership
+│   │   ├── project/         # Project CRUD
+│   │   ├── environment/     # Environment CRUD (DEV/TEST/STAGING/PROD)
+│   │   ├── flag/            # Feature flag CRUD + versioning
+│   │   ├── rules/           # Targeting rule engine
+│   │   ├── segment/         # User segments & membership
+│   │   ├── apikey/          # Environment-scoped API key management
+│   │   ├── evaluation/      # Flag evaluation endpoints (dashboard + SDK)
+│   │   ├── metrics/         # Evaluation metrics aggregation
+│   │   ├── audit/           # Audit log recording & retrieval
+│   │   ├── security/        # Spring Security config, filters
+│   │   └── common/          # Shared exception handling & utilities
+│   └── src/main/resources/
+│       ├── application.properties
+│       └── db/migration/    # Flyway versioned SQL migrations
+│
+├── frontend/
+│   └── src/
+│       ├── api/              # Axios API clients per resource
+│       ├── components/
+│       │   ├── layout/       # Sidebar, Navbar, DashboardLayout
+│       │   └── ui/           # Reusable UI primitives (Button, Card, Input…)
+│       ├── context/          # Auth & Theme React contexts
+│       ├── hooks/            # Custom hooks (useAuth, etc.)
+│       ├── pages/            # Route-level pages, grouped by domain
+│       ├── routes/           # Route definitions & guards
+│       └── types/            # Shared TypeScript types
+│
+├── docker-compose.yml
+├── .github/workflows/        # CI pipeline definitions
+└── README.md
+```
 
-### Environments
-| Method | Path | Role |
-|---|---|---|
-| POST | `/projects/{projectId}/environments` | `OWNER`/`ADMIN` |
-| GET | `/projects/{projectId}/environments` | any member |
-| GET | `/environments/{environmentId}` | any member |
-| PUT | `/environments/{environmentId}` | `OWNER`/`ADMIN` |
-| DELETE | `/environments/{environmentId}` | `OWNER`/`ADMIN` |
+---
 
-### Feature Flags & Versioning
-| Method | Path | Role |
-|---|---|---|
-| POST | `/environments/{environmentId}/flags` | `OWNER`/`ADMIN`/`EDITOR` |
-| GET | `/environments/{environmentId}/flags` | `OWNER`/`ADMIN`/`EDITOR` |
-| GET | `/flags/{flagId}` | `OWNER`/`ADMIN`/`EDITOR` |
-| PUT | `/flags/{flagId}` | `OWNER`/`ADMIN`/`EDITOR` |
-| POST | `/flags/{flagId}/enable` | `OWNER`/`ADMIN`/`EDITOR` |
-| POST | `/flags/{flagId}/disable` | `OWNER`/`ADMIN`/`EDITOR` |
-| PUT | `/flags/{flagId}/type` | `OWNER`/`ADMIN`/`EDITOR` |
-| GET | `/flags/{flagId}/versions` | `OWNER`/`ADMIN`/`EDITOR` |
-| GET | `/flags/{flagId}/versions/{version}` | `OWNER`/`ADMIN`/`EDITOR` |
-| POST | `/flags/{flagId}/versions/{version}/rollback` | `OWNER`/`ADMIN`/`EDITOR` |
-| GET | `/flags/{flagId}/metrics?from=&to=` | `OWNER`/`ADMIN`/`EDITOR` |
+## 🗄️ Database Overview
 
-### Rules
-| Method | Path | Role |
-|---|---|---|
-| POST | `/flags/{flagId}/rules` | `OWNER`/`ADMIN`/`EDITOR` |
-| GET | `/flags/{flagId}/rules` | `OWNER`/`ADMIN`/`EDITOR` |
-| GET | `/rules/{ruleId}` | `OWNER`/`ADMIN`/`EDITOR` |
-| GET | `/rules/{ruleId}/children` | `OWNER`/`ADMIN`/`EDITOR` |
-| PUT | `/rules/{ruleId}` | `OWNER`/`ADMIN`/`EDITOR` |
-| PATCH | `/rules/{ruleId}/position` | `OWNER`/`ADMIN`/`EDITOR` |
-| DELETE | `/rules/{ruleId}` | `OWNER`/`ADMIN`/`EDITOR` |
+Schema is fully managed via **Flyway** migrations. Core tables:
 
-### Segments
-| Method | Path | Role |
-|---|---|---|
-| POST | `/organizations/{organizationId}/segments` | `OWNER`/`ADMIN` |
-| GET | `/organizations/{organizationId}/segments` | any member |
-| GET | `/segments/{segmentId}` | any member |
-| PUT | `/segments/{segmentId}` | `OWNER`/`ADMIN` |
-| DELETE | `/segments/{segmentId}` | `OWNER`/`ADMIN` |
-| POST | `/segments/{segmentId}/members` | `OWNER`/`ADMIN` |
-| GET | `/segments/{segmentId}/members` | any member |
-| DELETE | `/segments/{segmentId}/members?userIdentifier=` | `OWNER`/`ADMIN` |
+| Table | Description |
+|---|---|
+| `organizations` | Top-level tenant boundary |
+| `users` | Registered user accounts |
+| `members` | Organization ↔ user membership & role assignment |
+| `projects` | Groups of environments within an organization |
+| `environments` | `DEV` / `TEST` / `STAGING` / `PROD` scopes within a project |
+| `feature_flags` | Flags defined per environment |
+| `feature_rules` | Targeting rules attached to a flag |
+| `segments` | Named user segments within an organization |
+| `segment_users` | Segment membership by user identifier |
+| `environment_api_keys` | Hashed API keys scoped to a single environment |
+| `flag_versions` | Historical snapshots of flag state for audit/rollback |
+| `audit_logs` | Immutable record of every mutating action |
+| `flag_evaluation_metrics` | Pre-aggregated evaluation counters |
 
-### API Keys
-| Method | Path | Role |
-|---|---|---|
-| POST | `/environments/{environmentId}/api-keys` | `OWNER`/`ADMIN` |
-| GET | `/environments/{environmentId}/api-keys` | any member |
-| DELETE | `/environments/{environmentId}/api-keys/{apiKeyId}` | `OWNER`/`ADMIN` |
+> All tables use UUID primary keys, and tenant isolation is enforced at the query layer via the organization → project → environment hierarchy.
 
-### Evaluation
-| Method | Path | Auth |
-|---|---|---|
-| POST | `/environments/{environmentId}/evaluate` | JWT (dashboard testing) |
-| POST | `/sdk/evaluate` | API Key (real SDK traffic) |
+---
 
-## Authentication & Authorization
+## 🔐 Authentication Flow
 
-**Dashboard users** register/log in via `/api/auth`, receiving a JWT (`Authorization: Bearer <token>`). Every other dashboard endpoint resolves the caller's role **per organization** via `OrganizationAuthorizationService` — the same user can be `OWNER` of one org and have no access at all to another.
+Two distinct authentication paths exist, depending on the caller:
 
-**SDK clients** authenticate with `X-Api-Key`, minted via the dashboard-facing `/api/environments/{id}/api-keys` endpoints. An API key is scoped to exactly one environment; there's no role check for SDK traffic because there's no human to hold a role — the key itself is the trust boundary. Only the key's hash is ever stored.
+1. **Dashboard users (JWT)**
+   - `POST /api/auth/register` → creates a user account
+   - `POST /api/auth/login` → validates credentials, issues a signed JWT
+   - Subsequent requests carry `Authorization: Bearer <token>`
+   - Spring Security resolves the token into an authenticated principal and enforces organization-membership/role checks per endpoint
 
-Role hierarchy (broadest → narrowest access), enforced uniformly:
+2. **SDK / API clients (Environment API Keys)**
+   - Each environment can issue one or more API keys
+   - Keys are hashed at rest and sent via a dedicated header on SDK evaluation requests
+   - The security layer resolves the key into an `Environment`-scoped principal, authorizing access to only that environment's flags
 
-| Role | Can read | Can create/edit flags, rules, segments | Can manage org/projects/environments/keys |
-|---|---|---|---|
-| `OWNER` | ✅ | ✅ | ✅ |
-| `ADMIN` | ✅ | ✅ | ✅ |
-| `EDITOR` | ✅ | ✅ | ❌ |
-| `VIEWER` | ✅ | ❌ | ❌ |
+```mermaid
+sequenceDiagram
+    participant Client
+    participant API as Spring Security
+    participant DB as PostgreSQL
 
-## Getting Started
+    Client->>API: POST /api/auth/login (email, password)
+    API->>DB: Verify credentials
+    DB-->>API: User record
+    API-->>Client: JWT access token
+
+    Client->>API: GET /api/organizations (Bearer JWT)
+    API->>API: Validate signature & expiry
+    API->>DB: Authorize + fetch data
+    DB-->>API: Result
+    API-->>Client: 200 OK + JSON
+```
+
+---
+
+## ⚙️ Installation
 
 ### Prerequisites
-- Java 21
-- Maven
-- PostgreSQL running locally (or reachable)
 
-### 1. Create the database
+- Java 21+
+- Node.js 18+
+- Maven 3.9+
+- PostgreSQL 15+
+- Docker & Docker Compose *(optional, for containerized setup)*
+
+### Clone the repository
+
 ```bash
-createdb feature_flag_engine
+git clone https://github.com/<your-username>/feature-flag-engine.git
+cd feature-flag-engine
 ```
 
-### 2. Configure `application.properties`
-The values below are placeholders — **do not commit real secrets**. Set your own DB credentials and generate a fresh JWT signing key:
-```properties
-spring.datasource.url=jdbc:postgresql://localhost:5432/feature_flag_engine
-spring.datasource.username=<your-db-username>
-spring.datasource.password=<your-db-password>
+---
 
-security.jwt.secret=<base64-encoded-256-bit-key>
-security.jwt.expiration-minutes=60
-```
-Generate a secret quickly with:
+## 🖥️ Running Locally
+
+### 1. Configure the database
+
+Create a local PostgreSQL database and update `backend/src/main/resources/application.properties` with your connection details, or export environment variables matching your config.
+
+### 2. Run the backend
+
 ```bash
-openssl rand -base64 32
+cd backend
+./mvnw clean install
+./mvnw spring-boot:run
 ```
 
-### 3. Run migrations + start the app
-Flyway runs automatically on startup (`spring.flyway.enabled=true`), applying every migration in `src/main/resources/db/migration` against the schema.
+Flyway will automatically apply all pending migrations on startup. The API will be available at `http://localhost:8080`.
+
+### 3. Run the frontend
+
 ```bash
-mvn spring-boot:run
-```
-The API is now available at `http://localhost:8080`.
-
-### 4. Try it
-```bash
-# Register
-curl -X POST localhost:8080/api/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{"email":"you@example.com","password":"a-strong-password","fullName":"Your Name"}'
-
-# Log in
-curl -X POST localhost:8080/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email":"you@example.com","password":"a-strong-password"}'
-# → returns a JWT; use it as `Authorization: Bearer <token>` on everything else
+cd frontend
+npm install
+npm run dev
 ```
 
-## Running with Docker
+The app will be available at `http://localhost:5173`.
 
-The included `Dockerfile` (multi-stage: Maven build → JRE runtime) and `docker-compose.yml` run the app and Postgres together, with a separate `application-docker.properties` profile that reads everything from environment variables instead of the hardcoded local values in `application.properties`.
+---
 
-### 1. Configure secrets
-```bash
-cp .env.example .env
-```
-Edit `.env` with real values:
-```
-DB_NAME=feature_flag_engine
-DB_USERNAME=postgres
-DB_PASSWORD=<pick a real password>
-JWT_SECRET=<output of: openssl rand -base64 32>
-JWT_EXPIRATION_MINUTES=60
-```
-`docker-compose.yml` deliberately has no fallback default for `DB_PASSWORD`/`JWT_SECRET` — it refuses to start without a real `.env`, rather than silently running with an insecure value.
+## 🐳 Docker Setup
 
-### 2. Build and run
+Spin up the entire stack — backend, frontend, and PostgreSQL — with a single command:
+
 ```bash
 docker compose up --build
 ```
-This starts Postgres (`db`) and the app (`app`), waits for Postgres's healthcheck before starting the app, and runs Flyway migrations automatically against the containerized database — same migrations, same order, as local dev. The API is available at `http://localhost:8080`.
 
-### 3. Rebuilding after code changes
-```bash
-docker compose down
-docker compose build --no-cache
-docker compose up
-```
-`--no-cache` matters after dependency or Java version changes — Docker's layer caching can otherwise serve a stale build.
+This will:
+- Build and start the PostgreSQL database
+- Build and start the Spring Boot backend (migrations run automatically)
+- Build and start the React frontend
 
-> **Windows/Git Bash note**: if `.env` was ever edited in a Windows-native editor, it can pick up CRLF line endings, which silently corrupts values like `JWT_SECRET` (a trailing `\r` isn't valid Base64). If you hit a decoding error, run `cat -A .env` — a `^M` before the end of any line means `sed -i 's/\r$//' .env` will fix it.
+> Adjust ports and environment variables in `docker-compose.yml` to match your local setup.
 
-## Testing
+---
 
-```bash
-mvn clean test
-```
+## 🔄 GitHub Actions CI
 
-Two layers of automated coverage:
-- **Unit tests** — the rule evaluator and rollout-bucketing logic are pure functions with real edge cases (empty rule trees, missing context attributes, `NOT` groups with zero children, boundary percentages), so they're covered directly without a Spring context.
-- **`@SpringBootTest` / MockMvc integration tests** — exercise controllers end-to-end against a real (test) database, covering auth, role enforcement, and the CRUD + evaluation flows.
+Every push and pull request triggers an automated pipeline that:
 
-A Postman collection (`postman/feature-flag-engine.postman_collection.json`) is also maintained for manual end-to-end verification. It's chained end-to-end via test scripts — running it top to bottom registers a user, logs in, creates an organization/project/environment/flag/rule/segment, and evaluates the flag, capturing each response's ID into a collection variable for the next request. This covers flows like Module 12's: create a segment → add a member → build a `CONDITION` rule with `attribute: "segment"` → confirm a member evaluates differently from a non-member.
+- ✅ Builds the backend with Maven
+- ✅ Runs unit tests (JUnit 5)
+- ✅ Runs integration tests (Testcontainers + PostgreSQL)
+- ✅ Installs frontend dependencies and runs the build
+- ✅ Reports build status on the PR
 
-## Project Structure
+Workflow definitions live under `.github/workflows/`.
 
-```
-src/main/java/com/prateek/featureflag/
-├── auth/          # Registration/login controller + DTOs
-├── security/      # JWT + API-key filters, SecurityConfig, UserDetailsService
-├── common/        # GlobalExceptionHandler (unified error shape)
-├── organization/  # Organization + Member entities, services, controller
-├── project/       # Project CRUD
-├── environment/   # Environment CRUD
-├── flag/          # FeatureFlag, FlagVersion, versioning/rollback
-├── rules/         # FeatureRule tree + CRUD
-├── segment/       # Segment + SegmentUser (audience targeting)
-├── evaluation/    # RuleEvaluator, FeatureFlagEvaluationService, dashboard + SDK evaluation controllers
-├── apikey/        # EnvironmentApiKey issuance/revocation
-├── audit/         # AuditLog, AuditAction, ResourceType
-├── metrics/       # Pre-aggregated evaluation analytics
-└── user/          # User entity + service
-```
+---
 
-Each domain package owns its own entity, repository, service, controller, and `dto/` subpackage — there's no cross-cutting `controllers/`/`services/` split.
+## 🔌 API Overview
 
-## Known Limitations / Roadmap
+A representative sample of the available REST endpoints:
 
-Being upfront about what's *not* done, rather than implying full coverage:
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/api/auth/register` | Register a new user |
+| `POST` | `/api/auth/login` | Authenticate and receive a JWT |
+| `POST` | `/api/organizations` | Create an organization |
+| `GET` | `/api/organizations` | List organizations for the current user |
+| `POST` | `/api/organizations/{organizationId}/projects` | Create a project |
+| `POST` | `/api/projects/{projectId}/environments` | Create an environment |
+| `POST` | `/api/environments/{environmentId}/flags` | Create a feature flag |
+| `PUT` | `/api/flags/{flagId}` | Update a feature flag |
+| `POST` | `/api/flags/{flagId}/enable` / `/disable` | Toggle a flag's state |
+| `POST` | `/api/flags/{flagId}/rules` | Add a targeting rule to a flag |
+| `POST` | `/api/organizations/{organizationId}/segments` | Create a user segment |
+| `POST` | `/api/segments/{segmentId}/members` | Add a member to a segment |
+| `POST` | `/api/environments/{environmentId}/api-keys` | Issue a new environment API key |
+| `POST` | `/api/environments/{environmentId}/evaluate` | Evaluate flags for the dashboard |
+| `POST` | `/api/sdk/evaluate` | Evaluate flags via SDK using an API key |
+| `GET` | `/api/flags/{flagId}/versions` | View a flag's version history |
+| `POST` | `/api/flags/{flagId}/versions/{version}/rollback` | Roll back to a previous version |
+| `GET` | `/api/organizations/{organizationId}/audit-logs` | Retrieve audit log entries |
+| `GET` | `/api/flags/{flagId}/metrics` | View evaluation metrics for a flag |
 
-- **SDK evaluations aren't audited.** `AuditLog.actor` is `NOT NULL`, and there's no human user behind an API-key-authenticated evaluation. Closing this properly needs a schema change (nullable actor, or a "system" pseudo-user) — deliberately not done silently.
-- **No API documentation UI yet** (springdoc-openapi/Swagger) — the table above is maintained by hand.
-- **No pagination** on list endpoints that can grow unbounded (flags, segments, audit logs) beyond what `audit-logs` already has via `Pageable`.
-- **No rate limiting** on `/api/sdk/evaluate`, the only genuinely public high-traffic endpoint.
-- Optional stretch ideas not started: webhooks on flag change, scheduled/timed rollouts, a minimal frontend dashboard.
+---
+
+## 📸 Screenshots
+
+### Register
+
+![Register](screenshots/register.png)
+
+---
+
+### Login
+
+![Login](screenshots/login.png)
+
+---
+
+### Dashboard
+
+![Dashboard](screenshots/dashboard.png)
+
+---
+
+### Dark Mode
+
+![Dark Mode](screenshots/dark-mode.png)
+
+---
+
+### Organizations
+
+![Organizations](screenshots/organizations.png)
+
+---
+
+### Create Organization
+
+![Create Organization](screenshots/create-organizations.png)
+
+---
+
+### Projects
+
+![Projects](screenshots/projects.png)
+
+---
+
+### Environments
+
+![Environments](screenshots/environments.png)
+
+---
+
+### Feature Flags
+
+![Feature Flags](screenshots/feature-flags.png)
+
+---
+
+### Segments
+
+![Segments](screenshots/segments.png)
+
+---
+
+### API Keys
+
+![API Keys](screenshots/api-keys.png)
+
+---
+
+### Audit Logs
+
+![Audit Logs](screenshots/audit-logs.png)
+
+---
+
+### Docker
+
+![Docker](screenshots/docker.png)
+
+---
+
+### Docker Running
+
+![Docker Running](screenshots/docker-running.png)
+
+---
+
+## 🛣️ Future Improvements
+
+- [ ] Audit logging for SDK-originated evaluation requests
+- [ ] Real-time flag updates via WebSockets/SSE (no polling)
+- [ ] Percentage-based rollouts & multivariate flags
+- [ ] Webhook notifications on flag state changes
+- [ ] Rate limiting on public SDK evaluation endpoints
+- [ ] SSO / OAuth2 login support
+- [ ] Organization-level usage analytics dashboard
+- [ ] Kubernetes deployment manifests / Helm chart
+
+---
+
+## 📄 License
+
+This project is licensed under the **MIT License** — see the [LICENSE](./LICENSE) file for details.
+
+---
+
+## 👤 Author
+
+**Prateek**
+
+Built as a hands-on deep dive into production-grade backend architecture — multi-tenancy, authorization boundaries, auditability, and clean API design — paired with a modern React/TypeScript frontend.
+
+---
+
+## 🤝 Contributing
+
+This is primarily a personal portfolio project, but suggestions and issue reports are welcome!
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/your-feature`)
+3. Commit your changes (`git commit -m 'Add some feature'`)
+4. Push to the branch (`git push origin feature/your-feature`)
+5. Open a Pull Request
+
+---
+
+<div align="center">
+
+⭐ **If you found this project interesting, consider giving it a star!** ⭐
+
+</div>

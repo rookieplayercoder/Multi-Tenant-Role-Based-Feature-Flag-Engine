@@ -20,20 +20,20 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
       )}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-surface-200 bg-white transition-transform duration-200 ease-in-out lg:static lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-surface-200 bg-white transition-transform duration-200 ease-in-out dark:border-surface-700 dark:bg-surface-800 lg:static lg:translate-x-0 ${
           isOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        <div className="flex h-16 items-center justify-between border-b border-surface-200 px-5">
+        <div className="flex h-16 items-center justify-between border-b border-surface-200 px-5 dark:border-surface-700">
           <div className="flex items-center gap-2">
-            <FlagTriangleRight className="h-6 w-6 text-brand-600" />
-            <span className="text-base font-semibold text-surface-900">
+            <FlagTriangleRight className="h-6 w-6 text-brand-600 dark:text-brand-400" />
+            <span className="font-display text-base font-semibold text-surface-900 dark:text-surface-50">
               Flag Engine
             </span>
           </div>
           <button
             onClick={onClose}
-            className="rounded-md p-1 text-surface-500 hover:bg-surface-100 lg:hidden"
+            className="rounded-md p-1 text-surface-500 hover:bg-surface-100 dark:text-surface-400 dark:hover:bg-surface-700 lg:hidden"
             aria-label="Close sidebar"
           >
             <X className="h-5 w-5" />
@@ -49,8 +49,8 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
               className={({ isActive }) =>
                 `flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                   isActive
-                    ? 'bg-brand-50 text-brand-700'
-                    : 'text-surface-600 hover:bg-surface-100 hover:text-surface-900'
+                    ? 'bg-brand-50 text-brand-700 dark:bg-brand-900/40 dark:text-brand-300'
+                    : 'text-surface-600 hover:bg-surface-100 hover:text-surface-900 dark:text-surface-300 dark:hover:bg-surface-700 dark:hover:text-surface-50'
                 }`
               }
             >
@@ -60,7 +60,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
           ))}
         </nav>
 
-        <div className="border-t border-surface-200 p-4 text-xs text-surface-400">
+        <div className="border-t border-surface-200 p-4 text-xs text-surface-400 dark:border-surface-700 dark:text-surface-600">
           Feature Flag Engine
         </div>
       </aside>

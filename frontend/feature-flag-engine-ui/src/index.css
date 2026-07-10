@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -9,12 +11,16 @@ body,
 }
 
 body {
-  @apply bg-surface-50 text-surface-900 antialiased;
+  @apply bg-surface-50 text-surface-900 antialiased transition-colors duration-200 dark:bg-surface-900 dark:text-surface-50;
 }
 
 * {
   scrollbar-width: thin;
   scrollbar-color: #c7cbd4 transparent;
+}
+
+.dark * {
+  scrollbar-color: #333a4a transparent;
 }
 
 :focus-visible {

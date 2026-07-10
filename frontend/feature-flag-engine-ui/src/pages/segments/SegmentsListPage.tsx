@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { getOrganizations } from "@/api/organizations";
+import { getOrganizations } from '@/api/organizations';
 import { Link } from 'react-router-dom';
 import { Users, Pencil, Plus, Trash2 } from 'lucide-react';
 import { Segment } from '@/types/segment';
-import { Project } from '@/types/project';
+import { Organization } from '@/types/organization';
 import { deleteSegment, getSegments } from '@/api/segments';
-import { getProjects } from '@/api/projects';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Spinner from '@/components/ui/Spinner';
@@ -13,66 +12,53 @@ import ErrorMessage from '@/components/ui/ErrorMessage';
 import EmptyState from '@/components/ui/EmptyState';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import Select from '@/components/ui/Select';
-import Badge from '@/components/ui/Badge';
 
 export default function SegmentsListPage() {
   const [segments, setSegments] = useState<Segment[]>([]);
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [projectFilter, setProjectFilter] = useState('');
+  const [organizations, setOrganizations] = useState<Organization[]>([]);
+  const [organizationFilter, setOrganizationFilter] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Segment | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
- async function loadData() {
-   setIsLoading(true);
-   setError(null);
+  async function loadData() {
+    setIsLoading(true);
+    setError(null);
 
-   try {
-     const organizations = await getOrganizations();
+    try {
+      const orgs = await getOrganizations();
+      setOrganizations(orgs);
 
-     let allProjects: Project[] = [];
-
-     for (const organization of organizations) {
-       const projects = await getProjects(organization.id);
-       allProjects.push(...projects);
-     }
-
-     let allSegments: Segment[] = [];
-
-     for (const organization of organizations) {
-       const segments = await getSegments(organization.id);
-       allSegments.push(...segments);
-     }
-
-     setProjects(allProjects);
-     setSegments(allSegments);
-
-   } catch (err) {
-     setError(
-       err instanceof Error
-         ? err.message
-         : "Failed to load segments."
-     );
-   } finally {
-     setIsLoading(false);
-   }
- }
+      let allSegments: Segment[] = [];
+      for (const organization of orgs) {
+        const orgSegments = await getSegments(organization.id);
+        allSegments.push(...orgSegments);
+      }
+      setSegments(allSegments);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : 'Failed to load segments.'
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  }
 
   useEffect(() => {
     loadData();
   }, []);
 
-  const projectNameById = useMemo(() => {
+  const organizationNameById = useMemo(() => {
     const map = new Map<string, string>();
-    projects.forEach((p) => map.set(p.id, p.name));
+    organizations.forEach((o) => map.set(o.id, o.name));
     return map;
-  }, [projects]);
+  }, [organizations]);
 
   const filteredSegments = useMemo(() => {
-    if (!projectFilter) return segments;
-    return segments.filter((s) => s.projectId === projectFilter);
-  }, [segments, projectFilter]);
+    if (!organizationFilter) return segments;
+    return segments.filter((s) => s.organizationId === organizationFilter);
+  }, [segments, organizationFilter]);
 
   async function handleDeleteConfirmed() {
     if (!pendingDelete) return;
@@ -88,16 +74,13 @@ export default function SegmentsListPage() {
     }
   }
 
-const getRuleCount = (segment: Segment) => segment.rules?.length ?? 0;
-
-
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl font-semibold text-surface-900">Segments</h1>
           <p className="text-sm text-surface-500">
-            Group users by attributes so you can target flags at specific
+            Group users by identifier so you can target flags at specific
             audiences.
           </p>
         </div>
@@ -109,17 +92,17 @@ const getRuleCount = (segment: Segment) => segment.rules?.length ?? 0;
         </Link>
       </div>
 
-      {!isLoading && !error && projects.length > 0 && (
+      {!isLoading && !error && organizations.length > 0 && (
         <div className="max-w-xs">
           <Select
-            aria-label="Filter by project"
-            value={projectFilter}
-            onChange={(e) => setProjectFilter(e.target.value)}
+            aria-label="Filter by organization"
+            value={organizationFilter}
+            onChange={(e) => setOrganizationFilter(e.target.value)}
           >
-            <option value="">All projects</option>
-            {projects.map((project) => (
-              <option key={project.id} value={project.id}>
-                {project.name}
+            <option value="">All organizations</option>
+            {organizations.map((organization) => (
+              <option key={organization.id} value={organization.id}>
+                {organization.name}
               </option>
             ))}
           </Select>
@@ -156,9 +139,11 @@ const getRuleCount = (segment: Segment) => segment.rules?.length ?? 0;
             <thead className="border-b border-surface-200 bg-surface-50 text-surface-500">
               <tr>
                 <th className="px-4 py-3 font-medium">Name</th>
-                <th className="px-4 py-3 font-medium">Rules</th>
                 <th className="hidden px-4 py-3 font-medium sm:table-cell">
-                  Project
+                  Description
+                </th>
+                <th className="hidden px-4 py-3 font-medium sm:table-cell">
+                  Organization
                 </th>
                 <th className="px-4 py-3 font-medium text-right">Actions</th>
               </tr>
@@ -169,16 +154,11 @@ const getRuleCount = (segment: Segment) => segment.rules?.length ?? 0;
                   <td className="px-4 py-3 font-medium text-surface-900">
                     {segment.name}
                   </td>
-                  <td className="px-4 py-3">
-                    <Badge tone="neutral">
-                      {getRuleCount(segment)}{" "}
-                      {getRuleCount(segment) === 1 ? "rule" : "rules"}
-                    </Badge>
+                  <td className="hidden px-4 py-3 text-surface-500 sm:table-cell">
+                    {segment.description || '—'}
                   </td>
                   <td className="hidden px-4 py-3 text-surface-500 sm:table-cell">
-                    {segment.projectName ||
-                      projectNameById.get(segment.projectId) ||
-                      '—'}
+                    {organizationNameById.get(segment.organizationId) || '—'}
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex justify-end gap-2">

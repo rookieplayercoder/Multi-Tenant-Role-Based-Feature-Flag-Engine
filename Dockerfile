@@ -9,10 +9,7 @@ WORKDIR /app
 # Dependencies are resolved in their own layer, cached separately from
 # source changes — editing a .java file won't force re-downloading the
 # whole dependency tree on the next build.
-COPY pom.xml .
-RUN mvn dependency:go-offline -B
-
-COPY src ./src
+COPY . .
 
 # Tests are skipped here deliberately: the @SpringBootTest/MockMvc suite
 # needs a live Postgres connection, which doesn't exist during an image
