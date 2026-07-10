@@ -32,7 +32,7 @@ export default function Navbar({ onMenuClick }: NavbarProps) {
             className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm font-medium text-surface-700 hover:bg-surface-100 dark:text-surface-200 dark:hover:bg-surface-700"
           >
             <UserCircle className="h-6 w-6 text-surface-400" />
-            <span className="hidden sm:inline">{user?.name || user?.email || 'Account'}</span>
+            <span className="hidden sm:inline">{user?.fullName || user?.email || 'Account'}</span>
             <ChevronDown className="h-4 w-4 text-surface-400" />
           </button>
 

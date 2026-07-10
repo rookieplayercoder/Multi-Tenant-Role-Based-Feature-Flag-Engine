@@ -180,7 +180,13 @@ useEffect(() => {
     setSubmitError(null);
     setIsSubmitting(true);
     try {
-      const payload = { key, name, description: description || undefined, type };
+      const payload = {
+        projectId,
+        key,
+        name,
+        description: description || undefined,
+        type,
+      };
       if (isEditMode && id) {
         await updateFeatureFlag(id, payload);
       } else {

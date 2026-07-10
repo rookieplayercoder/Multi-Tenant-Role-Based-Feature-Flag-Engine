@@ -44,7 +44,7 @@ export default function DashboardPage() {
           Dashboard
         </p>
         <h1 className="mt-1 font-display text-2xl font-semibold tracking-tight sm:text-3xl">
-          Welcome{user?.name ? `, ${user.name}` : ''}
+          Welcome{user?.fullName ? `, ${user.fullName}` : ''}
         </h1>
         <p className="mt-2 max-w-xl text-sm text-white/70">
           Here's a quick overview of your feature flag setup across
