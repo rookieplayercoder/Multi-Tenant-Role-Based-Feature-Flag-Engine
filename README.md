@@ -410,12 +410,6 @@ A representative sample of the available REST endpoints:
 
 ---
 
-### Docker
-
-![Docker](screenshots/docker.png)
-
----
-
 ### Docker Running
 
 ![Docker Running](screenshots/docker-running.png)
