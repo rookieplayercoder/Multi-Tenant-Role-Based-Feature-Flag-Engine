@@ -115,8 +115,6 @@ sequenceDiagram
 | **TypeScript** | Static typing across the frontend |
 | **Vite** | Build tool & dev server |
 | **Tailwind CSS** | Utility-first styling, incl. dark mode |
-| **React Router** | Client-side routing |
-| **Axios** | HTTP client |
 
 ### DevOps
 
