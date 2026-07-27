@@ -24,21 +24,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 import java.util.UUID;
 
-/**
- * Dashboard-facing management of {@link EnvironmentApiKey}s — the missing
- * piece that lets a human actually mint the credential
- * {@code SdkEvaluationController}/{@code ApiKeyAuthenticationFilter}
- * consume. Nothing else in the codebase previously called
- * {@link EnvironmentApiKeyService#issue}.
- * <p>
- * Create and revoke require {@code OWNER}/{@code ADMIN} — a step stricter
- * than {@code FeatureFlagController}'s {@code OWNER}/{@code ADMIN}/{@code EDITOR},
- * since minting or killing a live SDK credential is a more sensitive action
- * than editing a flag. Listing only requires org membership at all (any
- * role), matching how {@code FeatureFlagController} treats reads — and
- * critically, {@link ApiKeyResponse} never carries the raw key or hash, so
- * a broader read audience here doesn't leak anything sensitive.
- */
+
 @RestController
 @RequestMapping("/api/environments/{environmentId}/api-keys")
 public class ApiKeyController {
@@ -102,8 +88,6 @@ public class ApiKeyController {
 
             EnvironmentApiKey apiKey = environmentApiKeyService.getById(apiKeyId);
             if (!apiKey.getEnvironment().getId().equals(environmentId)) {
-                // Belongs to a different environment (possibly a different org entirely) —
-                // don't let this environment's OWNER/ADMIN role reach across that boundary.
                 return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
             }
 
