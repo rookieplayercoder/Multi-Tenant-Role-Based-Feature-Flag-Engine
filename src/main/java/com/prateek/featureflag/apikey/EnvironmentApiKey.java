@@ -19,21 +19,7 @@ import org.hibernate.annotations.CreationTimestamp;
 import java.time.Instant;
 import java.util.UUID;
 
-/**
- * SDK authentication credential, scoped to a single {@link Environment}.
- * Maps exactly to the {@code environment_api_keys} table in
- * V1__initial_schema.sql.
- * <p>
- * Only {@code keyHash} is persisted — the raw key is never stored, same
- * principle as password hashing. {@code keyPrefix} (e.g. {@code ffe_a1b2})
- * is safe to display in the dashboard for identification purposes.
- * {@code revokedAt} is this entity's soft-delete equivalent, matching the
- * Module 1 design decision — there is no separate {@code deleted_at}
- * column here.
- * <p>
- * Unidirectional {@code @ManyToOne} to {@link Environment}, since Environment
- * is not modified in this batch.
- */
+
 @Entity
 @Table(
         name = "environment_api_keys",
@@ -155,7 +141,6 @@ public class EnvironmentApiKey {
 
     @Override
     public String toString() {
-        // keyHash intentionally omitted.
         return "EnvironmentApiKey{id=%s, keyPrefix='%s', name='%s', revoked=%s}"
                 .formatted(id, keyPrefix, name, isRevoked());
     }
