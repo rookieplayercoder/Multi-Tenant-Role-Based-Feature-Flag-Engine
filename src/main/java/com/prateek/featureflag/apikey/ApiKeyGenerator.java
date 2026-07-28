@@ -8,18 +8,6 @@ import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.util.Base64;
 
-/**
- * Generates a raw SDK API key and its SHA-256 hash. Kept as its own class
- * rather than folded into {@link EnvironmentApiKeyService}, whose own
- * Javadoc explicitly scopes it to already-hashed input — "raw key
- * generation/hashing is out of scope" there, by design. The hash algorithm
- * here must stay in lockstep with
- * {@code ApiKeyAuthenticationService.sha256Hex}, since that's the exact-match
- * lookup a generated key has to satisfy later; both independently hash with
- * plain SHA-256 (no salt) precisely because the lookup is by-hash, not
- * verify-style, so a salted/non-deterministic scheme like BCrypt would break
- * it.
- */
 @Component
 public class ApiKeyGenerator {
 
@@ -29,12 +17,7 @@ public class ApiKeyGenerator {
 
     private final SecureRandom secureRandom = new SecureRandom();
 
-    /**
-     * A newly generated raw key plus its hash, ready to hand to
-     * {@link EnvironmentApiKeyService#issue}. {@code rawKey} must be
-     * returned to the caller immediately and never persisted or logged —
-     * this is the only place in the system it ever exists in memory.
-     */
+   
     public record GeneratedKey(String rawKey, String keyHash, String keyPrefix) {
     }
 
