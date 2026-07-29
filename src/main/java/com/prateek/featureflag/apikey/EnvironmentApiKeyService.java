@@ -9,14 +9,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
-/**
- * Service layer for {@link EnvironmentApiKey}. Raw key generation/hashing
- * is out of scope — callers pass an already-computed {@code keyHash} and
- * {@code keyPrefix}, consistent with the entity's own Javadoc that only the
- * hash is ever persisted. {@code revokedAt} is this entity's soft-delete
- * equivalent, so {@code revoke} mirrors the {@code softDelete} pattern used
- * elsewhere.
- */
+
 @Service
 @Transactional(readOnly = true)
 public class EnvironmentApiKeyService {
