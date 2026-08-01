@@ -21,31 +21,6 @@ import org.hibernate.type.SqlTypes;
 import java.time.Instant;
 import java.util.UUID;
 
-/**
- * Generic, append-only activity trail entry for an {@link Organization}.
- * Maps exactly to the {@code audit_logs} table in V1__initial_schema.sql —
- * {@code entity_type}/{@code entity_id}/{@code actor_id} are the real
- * column names. (A previous edit changed the {@code @Column}/
- * {@code @JoinColumn} name attributes to {@code resource_type}/
- * {@code resource_id}/{@code actor_user_id} without a companion Flyway
- * migration actually renaming the columns — that mismatch is what
- * produced the "missing column [resource_id]" validation error. Fixed
- * back here rather than migrating the DB, since the Java field names
- * (entityType/entityId/actor) were never actually changed, only the
- * column-name mapping drifted.)
- * <p>
- * Deliberately generic rather than per-entity: {@code entityType} +
- * {@code entityId} identify what changed, without a direct FK to any
- * specific entity table, since audit queries are almost always
- * "recent activity for this org" rather than entity-specific joins (see
- * Module 1 rationale).
- * <p>
- * No {@code deleted_at} — append-only, enforced at the application/service
- * layer. Unidirectional {@code @ManyToOne} to both {@link Organization} and
- * {@link User}; {@code actor} follows the same author-attribution pattern
- * as {@code FeatureFlag.createdBy} and {@code FlagVersion.changedBy}: LAZY,
- * no cascade, protected by the DB's {@code ON DELETE RESTRICT}.
- */
 @Entity
 @Table(name = "audit_logs")
 public class AuditLog {
