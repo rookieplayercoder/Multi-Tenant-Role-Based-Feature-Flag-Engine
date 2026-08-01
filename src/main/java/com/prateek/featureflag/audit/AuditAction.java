@@ -1,15 +1,5 @@
 package com.prateek.featureflag.audit;
 
-/**
- * Every action recorded in {@code audit_logs}. Replaces the free-text
- * {@code String} action literals (e.g. {@code "organization.created"}) that
- * every service previously passed to {@link AuditLogService#record}.
- * <p>
- * Stored via {@code @Enumerated(EnumType.STRING)} on {@link AuditLog}, so
- * reordering constants here is safe — only the constant name itself is
- * persisted, and renaming a constant is the one change that would require
- * a data migration.
- */
 public enum AuditAction {
     ORGANIZATION_CREATED,
     ORGANIZATION_RENAMED,
