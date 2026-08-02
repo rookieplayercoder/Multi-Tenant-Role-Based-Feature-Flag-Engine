@@ -1,19 +1,6 @@
 import apiClient from './client';
 import { ApiKey, ApiKeyInput } from '@/types/apiKey';
 
-/**
- * Assumes a flat /api-keys resource where each key carries an
- * environmentId, using standard REST conventions:
- *   GET    /api-keys?environmentId=...  -> ApiKey[] (masked, no secret)
- *   POST   /api-keys                    -> ApiKey (includes the full secret ONCE)
- *   PUT    /api-keys/{id}               -> rename only, { name }
- *   DELETE /api-keys/{id}               -> revoke
- *
- * API keys are treated as create-once, rename-or-revoke afterwards — the
- * secret itself is never editable or re-fetchable, which matches how most
- * API key systems work. Adjust paths/fields in this file if your backend
- * differs.
- */
 export async function getApiKeys(
   environmentId: string
 ): Promise<ApiKey[]> {
