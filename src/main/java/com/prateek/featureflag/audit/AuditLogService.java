@@ -10,13 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.UUID;
 
-/**
- * Service layer for {@link AuditLog}. Append-only, matching the entity — no
- * update/delete methods, only {@code record} (create) and reads. Note the
- * {@code organization} parameter/property naming mirrors the entity's own
- * (British-spelled) field, a pre-existing inconsistency documented in the
- * Batch 1 repository notes rather than something changed here.
- */
+
 @Service
 @Transactional(readOnly = true)
 public class AuditLogService {
