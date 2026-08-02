@@ -7,22 +7,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.List;
 import java.util.UUID;
 
-/**
- * Repository for {@link AuditLog}.
- * <p>
- * {@code findByOrganizationIdOrderByCreatedAtDesc} is paginated to back the
- * dominant "recent activity for this org" access pattern
- * ({@code idx_audit_logs_org_created_at}); audit trails are unbounded and
- * growing, so returning a {@link Page} rather than a full {@link List}
- * avoids loading an entire org's history at once. Note the property path
- * uses {@code organization} (British spelling), matching AuditLog's actual
- * field name, not {@code organization} like every other entity in this
- * project — the entity's own Javadoc documents this as a deliberate,
- * pre-existing naming mismatch rather than an inconsistency introduced here.
- * {@code findByEntityTypeAndEntityIdOrderByCreatedAtDesc} backs the
- * secondary "history for this specific entity" pattern
- * ({@code idx_audit_logs_entity}).
- */
 public interface AuditLogRepository extends JpaRepository<AuditLog, UUID> {
 
     Page<AuditLog> findByOrganizationIdOrderByCreatedAtDesc(UUID organizationId, Pageable pageable);
