@@ -12,16 +12,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * Public authentication endpoints. Matches {@code /api/auth/**}, already
- * permitted without authentication in {@code SecurityConfig}.
- * <p>
- * No global exception-handler infrastructure exists yet in this project, so
- * the two expected failure modes are translated to HTTP responses locally
- * rather than propagating to a generic 500. This is intentionally narrow —
- * only the failures {@link AuthenticationService} is documented to throw
- * are handled here.
- */
+
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
