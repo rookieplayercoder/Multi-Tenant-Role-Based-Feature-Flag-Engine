@@ -14,21 +14,6 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
-/**
- * Orchestrates registration and login. Deliberately thin: password hashing
- * is delegated to the existing {@link PasswordEncoder} bean, email
- * uniqueness is enforced by the existing {@link UserService#register},
- * credential verification is delegated to the existing
- * {@link AuthenticationManager} (wired in {@code SecurityConfig}), and
- * token issuance is delegated to the existing {@link JwtService}. This
- * service adds no new persistence or credential-checking logic of its own —
- * it composes Batch 1 infrastructure.
- * <p>
- * Registration creates a {@link User} only. No {@code Organization} or
- * {@code Member} is created here — that is a deliberately separate, later
- * concern (e.g. an "onboarding" flow where a user creates or is invited to
- * an organization after signing up).
- */
 @Service
 public class AuthenticationService {
 
