@@ -13,27 +13,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import java.time.Instant;
 import java.util.stream.Collectors;
 
-/**
- * Single place every controller's error responses go through, replacing
- * the repeated {@code catch (EntityNotFoundException) -> 404} /
- * {@code catch (IllegalStateException) -> 409} blocks that were previously
- * duplicated in each controller. Every branch below returns the same
- * {@link ErrorResponse} shape, so a 404, a 409, and a validation failure
- * are now structurally identical in JSON.
- * <p>
- * {@link AccessDeniedException} (thrown by
- * {@code OrganizationAuthorizationService.requireRole}) is handled here
- * too. It's thrown from inside a controller method, so Spring MVC's
- * exception resolution — which includes {@code @RestControllerAdvice} —
- * sees it before Spring Security's {@code ExceptionTranslationFilter}
- * would; handling it here doesn't change the 403 status, it just gives it
- * the same response body shape as everything else instead of Boot's
- * default error page.
- * <p>
- * The catch-all {@link Exception} handler deliberately returns a generic
- * message rather than {@code ex.getMessage()} — an unexpected exception's
- * message may contain internal details that shouldn't reach a client.
- */
+
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
