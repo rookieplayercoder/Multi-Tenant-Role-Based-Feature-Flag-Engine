@@ -35,26 +35,13 @@ public class AuthenticationService {
         this.jwtProperties = jwtProperties;
     }
 
-    /**
-     * Hashes the raw password, creates the user via {@link UserService}
-     * (which throws {@link IllegalStateException} on a duplicate email —
-     * not re-validated here to avoid two sources of truth for that rule),
-     * then immediately issues a token so the caller is logged in on
-     * successful registration.
-     */
     public LoginResponse register(RegisterRequest request) {
         String passwordHash = passwordEncoder.encode(request.password());
         User user = userService.register(request.email(), passwordHash, request.fullName());
         return issueTokenFor(user);
     }
 
-    /**
-     * Delegates credential verification entirely to
-     * {@link AuthenticationManager#authenticate}, which throws
-     * {@link org.springframework.security.core.AuthenticationException}
-     * (its subtypes, e.g. {@code BadCredentialsException}) on failure —
-     * left unhandled here so the controller decides the HTTP response.
-     */
+     
     public LoginResponse login(LoginRequest request) {
         Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(request.email(), request.password()));
