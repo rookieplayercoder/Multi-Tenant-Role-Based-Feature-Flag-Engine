@@ -26,14 +26,7 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
 
-/**
- * An Environment (dev/test/staging/prod) belongs to exactly one
- * {@link Project} and scopes the state of every {@link FeatureFlag} within
- * it — the same conceptual flag can be enabled in one environment and
- * disabled in another, which is why FeatureFlag FKs here rather than to
- * Project directly. Maps exactly to the {@code environments} table in
- * V1__initial_schema.sql.
- */
+
 @Entity
 @Table(
         name = "environments",
