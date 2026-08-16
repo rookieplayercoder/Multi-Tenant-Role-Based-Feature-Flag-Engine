@@ -23,29 +23,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 import java.util.UUID;
 
-/**
- * Environment CRUD. Two route groups, same convention as
- * {@code ProjectController}/{@code FeatureFlagController}: project-scoped
- * ({@code /api/projects/{projectId}/environments}) for create/list, and
- * environment-scoped ({@code /api/environments/{environmentId}}) for
- * get/rename/delete. No class-level {@code @RequestMapping}, same reason
- * as {@code ProjectController} — two different route prefixes.
- * <p>
- * Environment-scoped endpoints resolve the owning organization via
- * {@code environment.getProject().getOrganization().getId()} (two
- * chained LAZY loads; relies on this project's default
- * {@code spring.jpa.open-in-view=true}, same as the existing {@code create}
- * handler's own comment on this). There's deliberately no
- * {@code organizationId}/{@code projectId} in these routes to go stale
- * against the fetched entity's real parents.
- * <p>
- * Local try/catch is kept (not migrated to {@code GlobalExceptionHandler}),
- * matching {@code ProjectController}'s own note on scope for this batch.
- * <p>
- * {@code create}/{@code rename}/{@code delete} require
- * {@code OWNER}/{@code ADMIN} (unchanged tier from the existing
- * {@code create}). {@code list}/{@code getById} are open to any org member.
- */
+
 @RestController
 public class EnvironmentController {
 
