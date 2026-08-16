@@ -42,11 +42,8 @@ public class Environment {
     @Column(name = "id", updatable = false, nullable = false)
     private UUID id;
 
-    /**
-     * Owning side of the FK. LAZY explicitly set to override the JPA-spec
-     * EAGER default for @ManyToOne.
-     */
-    @NotNull
+        
+    Null
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "project_id", nullable = false, updatable = false)
     private Project project;
@@ -56,11 +53,7 @@ public class Environment {
     @Column(name = "name", nullable = false)
     private String name;
 
-    /**
-     * Backed by {@link EnvironmentTypeConverter}, which lowercases on write
-     * and uppercases on read to reconcile Java enum convention with the
-     * DB's lowercase CHECK constraint.
-     */
+    
     @NotNull
     @Column(name = "key", nullable = false, length = 50)
     private EnvironmentType key;
@@ -76,11 +69,7 @@ public class Environment {
     @Column(name = "deleted_at")
     private Instant deletedAt;
 
-    /**
-     * Inverse side of Environment <-> FeatureFlag. FeatureFlag owns the FK
-     * (environment_id). PERSIST/MERGE only, same reasoning as prior
-     * batches — explicit deletion stays a service-layer concern.
-     */
+    
     @OneToMany(mappedBy = "environment", fetch = FetchType.LAZY, cascade = {CascadeType.PERSIST, CascadeType.MERGE})
     private Set<FeatureFlag> featureFlags = new HashSet<>();
 
