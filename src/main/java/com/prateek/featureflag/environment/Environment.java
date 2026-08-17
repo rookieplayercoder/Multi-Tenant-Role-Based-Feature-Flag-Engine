@@ -42,7 +42,7 @@ public class Environment {
     @Column(name = "id", updatable = false, nullable = false)
     private UUID id;
 
-        
+
     @NotNull
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "project_id", nullable = false, updatable = false)
